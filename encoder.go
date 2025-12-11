@@ -1,4 +1,4 @@
-package tinybin
+package gobin
 
 import (
 	"io"
@@ -8,17 +8,17 @@ import (
 	. "github.com/tinywasm/fmt"
 )
 
-// Note: encoder pool is now managed by TinyBin instance
+// Note: encoder pool is now managed by GoBin instance
 
 // encoder represents a binary encoder.
 type encoder struct {
 	scratch [10]byte
-	tb      *TinyBin // Reference to the TinyBin instance for schema caching
+	tb      *GoBin // Reference to the GoBin instance for schema caching
 	out     io.Writer
 	err     error
 }
 
-// NewEncoder creates a new encoder (deprecated - use TinyBin instance methods).
+// NewEncoder creates a new encoder (deprecated - use GoBin instance methods).
 func NewEncoder(out io.Writer) *encoder {
 	return &encoder{
 		out: out,
@@ -26,7 +26,7 @@ func NewEncoder(out io.Writer) *encoder {
 }
 
 // Reset resets the encoder and makes it ready to be reused.
-func (e *encoder) Reset(out io.Writer, tb *TinyBin) {
+func (e *encoder) Reset(out io.Writer, tb *GoBin) {
 	e.out = out
 	e.err = nil
 	e.tb = tb
@@ -149,12 +149,12 @@ func (e *encoder) WriteString(v string) {
 	e.Write(ToBytes(v))
 }
 
-// scanToCache scans the type and caches it in the TinyBin instance
+// scanToCache scans the type and caches it in the GoBin instance
 func (e *encoder) scanToCache(t reflect.Type) (Codec, error) {
 	if e.tb == nil {
-		return nil, Err("encoder", "scanToCache", "TinyBin", "nil")
+		return nil, Err("encoder", "scanToCache", "GoBin", "nil")
 	}
 
-	// Use the TinyBin instance's schema caching mechanism
+	// Use the GoBin instance's schema caching mechanism
 	return e.tb.scanToCache(t)
 }

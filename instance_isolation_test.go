@@ -1,4 +1,4 @@
-package tinybin
+package gobin
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// TestInstanceIsolation verifies that different TinyBin instances are completely isolated
+// TestInstanceIsolation verifies that different GoBin instances are completely isolated
 func TestInstanceIsolation(t *testing.T) {
 	type TestStruct struct {
 		ID   int    `binary:"id"`

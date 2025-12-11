@@ -1,4 +1,4 @@
-package tinybin
+package gobin
 
 import (
 	"bytes"

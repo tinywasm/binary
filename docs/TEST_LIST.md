@@ -1,7 +1,7 @@
-# TinyBin Test Coverage Plan
+# GoBin Test Coverage Plan
 
 ## Objective
-Increase test coverage for TinyBin serialization by adding missing scenarios and edge cases. Use shared fixtures for **new tests** to avoid code duplication. Existing tests should be preserved and only updated if they are broken or redundant.
+Increase test coverage for GoBin serialization by adding missing scenarios and edge cases. Use shared fixtures for **new tests** to avoid code duplication. Existing tests should be preserved and only updated if they are broken or redundant.
 
 ## Core Structures (Fixtures)
 Use these structures for **new test cases** in `shared_test.go`.

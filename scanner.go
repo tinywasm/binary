@@ -1,4 +1,4 @@
-package tinybin
+package gobin
 
 import (
 	"reflect"
@@ -6,7 +6,7 @@ import (
 	. "github.com/tinywasm/fmt"
 )
 
-// Note: Global schemas map removed - now using instance-based caching in TinyBin
+// Note: Global schemas map removed - now using instance-based caching in GoBin
 
 // scanToCache scans the type and caches in the local cache.
 func scanToCache(t reflect.Type, cache map[reflect.Type]Codec) (Codec, error) {
@@ -23,7 +23,7 @@ func scanToCache(t reflect.Type, cache map[reflect.Type]Codec) (Codec, error) {
 	return c, nil
 }
 
-// Scan gets a codec for the type. Caching is now handled by TinyBin instance.
+// Scan gets a codec for the type. Caching is now handled by GoBin instance.
 func scan(t reflect.Type) (c Codec, err error) {
 	return scanType(t)
 }

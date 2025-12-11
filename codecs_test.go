@@ -1,4 +1,4 @@
-package tinybin
+package gobin
 
 import (
 	"bytes"
@@ -118,7 +118,7 @@ func TestBinarySimpleStructSlice(t *testing.T) {
 }
 
 // s1 struct and related test commented out since it uses map[string]string
-// which is not supported in TinyBin.
+// which is not supported in GoBin.
 // type s1 struct {
 // 	Name     string
 // 	BirthDay time.Time

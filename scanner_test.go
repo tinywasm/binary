@@ -1,4 +1,4 @@
-package tinybin
+package gobin
 
 import (
 	"bytes"
@@ -47,7 +47,7 @@ func TestScanner_Custom(t *testing.T) {
 }
 
 // TestScannerComposed removed - uses Partition struct with maps which are not supported
-// Maps are intentionally not supported in TinyBin for WebAssembly optimization
+// Maps are intentionally not supported in GoBin for WebAssembly optimization
 /*
 func TestScannerComposed(t *testing.T) {
 	codec, err := scanType(reflect.TypeOf(Partition{}))

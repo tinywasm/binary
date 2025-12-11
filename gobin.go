@@ -1,4 +1,4 @@
-package tinybin
+package gobin
 
 import (
 	"bytes"
@@ -9,9 +9,9 @@ import (
 	. "github.com/tinywasm/fmt"
 )
 
-// TinyBin represents a binary encoder/decoder with isolated state.
+// GoBin represents a binary encoder/decoder with isolated state.
 // This replaces the previous global variable-based architecture.
-type TinyBin struct {
+type GoBin struct {
 	// log is an optional custom logging function
 	log func(msg ...any)
 
@@ -34,12 +34,12 @@ type schemaEntry struct {
 	Codec Codec
 }
 
-// New creates a new TinyBin instance with optional configuration.
+// New creates a new GoBin instance with optional configuration.
 // The first argument can be an optional logging function.
 // If no logging function is provided, a no-op logger is used.
-// eg: tb := tinybin.New(func(msg ...any) { fmt.Println(msg...) })
+// eg: tb := gobin.New(func(msg ...any) { fmt.Println(msg...) })
 
-func New(args ...any) *TinyBin {
+func New(args ...any) *GoBin {
 	var logFunc func(msg ...any) // Default: no logging
 
 	for _, arg := range args {
@@ -48,7 +48,7 @@ func New(args ...any) *TinyBin {
 		}
 	}
 
-	tb := &TinyBin{log: logFunc}
+	tb := &GoBin{log: logFunc}
 
 	tb.schemas = make([]schemaEntry, 0, 100) // Pre-allocate reasonable size
 	tb.encoders = &sync.Pool{
@@ -69,8 +69,8 @@ func New(args ...any) *TinyBin {
 	return tb
 }
 
-// Encode encodes the payload into binary format using this TinyBin instance.
-func (tb *TinyBin) Encode(data any) ([]byte, error) {
+// Encode encodes the payload into binary format using this GoBin instance.
+func (tb *GoBin) Encode(data any) ([]byte, error) {
 	var buffer bytes.Buffer
 	buffer.Grow(64)
 
@@ -82,8 +82,8 @@ func (tb *TinyBin) Encode(data any) ([]byte, error) {
 	}
 }
 
-// EncodeTo encodes the payload into a specific destination using this TinyBin instance.
-func (tb *TinyBin) EncodeTo(data any, dst io.Writer) error {
+// EncodeTo encodes the payload into a specific destination using this GoBin instance.
+func (tb *GoBin) EncodeTo(data any, dst io.Writer) error {
 	// Get the encoder from the pool, reset it
 	e := tb.encoders.Get().(*encoder)
 	e.Reset(dst, tb)
@@ -96,8 +96,8 @@ func (tb *TinyBin) EncodeTo(data any, dst io.Writer) error {
 	return err
 }
 
-// Decode decodes the payload from the binary format using this TinyBin instance.
-func (tb *TinyBin) Decode(data []byte, target any) error {
+// Decode decodes the payload from the binary format using this GoBin instance.
+func (tb *GoBin) Decode(data []byte, target any) error {
 	// Get the decoder from the pool, reset it
 	d := tb.decoders.Get().(*decoder)
 	d.Reset(data, tb)
@@ -109,7 +109,7 @@ func (tb *TinyBin) Decode(data []byte, target any) error {
 }
 
 // findSchema performs a linear search in the slice-based cache for TinyGo compatibility
-func (tb *TinyBin) findSchema(t reflect.Type) (Codec, bool) {
+func (tb *GoBin) findSchema(t reflect.Type) (Codec, bool) {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 	for _, entry := range tb.schemas {
@@ -121,7 +121,7 @@ func (tb *TinyBin) findSchema(t reflect.Type) (Codec, bool) {
 }
 
 // addSchema adds a new schema to the slice-based cache
-func (tb *TinyBin) addSchema(t reflect.Type, codec Codec) {
+func (tb *GoBin) addSchema(t reflect.Type, codec Codec) {
 	tb.mu.Lock()
 	defer tb.mu.Unlock()
 	// Simple cache size limit (optional, for memory control)
@@ -136,8 +136,8 @@ func (tb *TinyBin) addSchema(t reflect.Type, codec Codec) {
 	})
 }
 
-// scanToCache scans the type and caches it in the TinyBin instance using slice-based cache
-func (tb *TinyBin) scanToCache(t reflect.Type) (Codec, error) {
+// scanToCache scans the type and caches it in the GoBin instance using slice-based cache
+func (tb *GoBin) scanToCache(t reflect.Type) (Codec, error) {
 	if t == nil {
 		return nil, Err("scanToCache", "type", "nil")
 	}

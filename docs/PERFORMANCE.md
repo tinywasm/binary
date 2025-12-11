@@ -1,6 +1,6 @@
 # Performance Considerations
 
-- **Instance-Based Pooling**: Each TinyBin instance maintains its own encoder and decoder pools for optimal resource management
+- **Instance-Based Pooling**: Each GoBin instance maintains its own encoder and decoder pools for optimal resource management
 - **Zero Allocations**: Where possible, operations avoid heap allocations for maximum performance
 - **Variable-Length Integers**: Integers are encoded with minimal bytes using efficient algorithms
 - **Unsafe Operations**: String/byte conversions use unsafe operations for performance when appropriate

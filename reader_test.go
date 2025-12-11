@@ -1,4 +1,4 @@
-package tinybin
+package gobin
 
 import (
 	"testing"
@@ -35,7 +35,7 @@ func TestReader_Slice(t *testing.T) {
 // 	}
 // }
 
-// TestStreamReader and bigStruct commented out since it uses maps, which are not supported in TinyBin.
+// TestStreamReader and bigStruct commented out since it uses maps, which are not supported in GoBin.
 // func TestStreamReader(t *testing.T) {
 // 	input := newBigStruct()
 // 	tb := New()
