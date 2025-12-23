@@ -41,7 +41,7 @@ func TestReader_Slice(t *testing.T) {
 // 	tb := New()
 // 	b, _ := tb.Encode(input)
 //
-// 	dec := NewDecoder(newNetworkSource(b))
+// 	dec := newDecoder(newNetworkSource(b))
 // 	out := new(bigStruct)
 // 	if err := dec.Decode(out); err != nil {
 // 		t.Fatalf("Unexpected error: %v", err)

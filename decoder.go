@@ -8,23 +8,23 @@ import (
 	. "github.com/tinywasm/fmt"
 )
 
-// Note: decoder pool is now managed by Binary instance
+// Note: decoder pool is now managed by internal instance
 
 // decoder represents a binary decoder.
 type decoder struct {
 	reader reader
-	tb     *Binary // Reference to the Binary instance for schema caching
+	tb     *instance // Reference to the instance for schema caching
 }
 
-// NewDecoder creates a binary decoder (deprecated - use Binary instance methods).
-func NewDecoder(r io.Reader) *decoder {
+// newDecoder creates a binary decoder.
+func newDecoder(r io.Reader) *decoder {
 	return &decoder{
 		reader: newReader(r),
 	}
 }
 
-// Decode decodes a value by reading from the underlying io.Reader.
-func (d *decoder) Decode(v any) (err error) {
+// decode decodes a value by reading from the underlying io.Reader.
+func (d *decoder) decode(v any) (err error) {
 	rv := reflect.Indirect(reflect.ValueOf(v))
 	canAddr := rv.CanAddr()
 	if !canAddr {
@@ -32,31 +32,31 @@ func (d *decoder) Decode(v any) (err error) {
 	}
 
 	// Scan the type (this will load from cache)
-	var c Codec
+	var c codec
 	if c, err = d.scanToCache(rv.Type()); err == nil {
-		err = c.DecodeTo(d, rv)
+		err = c.decodeTo(d, rv)
 	}
 
 	return
 }
 
-// Read reads a set of bytes
-func (d *decoder) Read(b []byte) (int, error) {
+// read reads a set of bytes
+func (d *decoder) read(b []byte) (int, error) {
 	return d.reader.Read(b)
 }
 
-// ReadUvarint reads a variable-length Uint64 from the buffer.
-func (d *decoder) ReadUvarint() (uint64, error) {
+// readUvarint reads a variable-length Uint64 from the buffer.
+func (d *decoder) readUvarint() (uint64, error) {
 	return d.reader.ReadUvarint()
 }
 
-// ReadVarint reads a variable-length Int64 from the buffer.
-func (d *decoder) ReadVarint() (int64, error) {
+// readVarint reads a variable-length Int64 from the buffer.
+func (d *decoder) readVarint() (int64, error) {
 	return d.reader.ReadVarint()
 }
 
-// ReadUint16 reads a uint16
-func (d *decoder) ReadUint16() (out uint16, err error) {
+// readUint16 reads a uint16
+func (d *decoder) readUint16() (out uint16, err error) {
 	var b []byte
 	if b, err = d.reader.Slice(2); err == nil {
 		_ = b[1] // bounds check hint to compiler
@@ -65,8 +65,8 @@ func (d *decoder) ReadUint16() (out uint16, err error) {
 	return
 }
 
-// ReadUint32 reads a uint32
-func (d *decoder) ReadUint32() (out uint32, err error) {
+// readUint32 reads a uint32
+func (d *decoder) readUint32() (out uint32, err error) {
 	var b []byte
 	if b, err = d.reader.Slice(4); err == nil {
 		_ = b[3] // bounds check hint to compiler
@@ -75,8 +75,8 @@ func (d *decoder) ReadUint32() (out uint32, err error) {
 	return
 }
 
-// ReadUint64 reads a uint64
-func (d *decoder) ReadUint64() (out uint64, err error) {
+// readUint64 reads a uint64
+func (d *decoder) readUint64() (out uint64, err error) {
 	var b []byte
 	if b, err = d.reader.Slice(8); err == nil {
 		_ = b[7] // bounds check hint to compiler
@@ -86,73 +86,77 @@ func (d *decoder) ReadUint64() (out uint64, err error) {
 	return
 }
 
-// ReadFloat32 reads a float32
-func (d *decoder) ReadFloat32() (out float32, err error) {
+// readFloat32 reads a float32
+func (d *decoder) readFloat32() (out float32, err error) {
 	var v uint32
-	if v, err = d.ReadUint32(); err == nil {
+	if v, err = d.readUint32(); err == nil {
 		out = math.Float32frombits(v)
 	}
 	return
 }
 
-// ReadFloat64 reads a float64
-func (d *decoder) ReadFloat64() (out float64, err error) {
+// readFloat64 reads a float64
+func (d *decoder) readFloat64() (out float64, err error) {
 	var v uint64
-	if v, err = d.ReadUint64(); err == nil {
+	if v, err = d.readUint64(); err == nil {
 		out = math.Float64frombits(v)
 	}
 	return
 }
 
-// ReadBool reads a single boolean value from the slice.
-func (d *decoder) ReadBool() (bool, error) {
+// readBool reads a single boolean value from the slice.
+func (d *decoder) readBool() (bool, error) {
 	b, err := d.reader.ReadByte()
 	return b == 1, err
 }
 
-// ReadString a string prefixed with a variable-size integer size.
-func (d *decoder) ReadString() (out string, err error) {
+// readString a string prefixed with a variable-size integer size.
+func (d *decoder) readString() (out string, err error) {
 	var b []byte
-	if b, err = d.ReadSlice(); err == nil {
+	if b, err = d.readSlice(); err == nil {
 		out = string(b)
 	}
 	return
 }
 
-// Slice selects a sub-slice of next bytes. This is similar to Read() but does not
+// slice selects a sub-slice of next bytes. This is similar to Read() but does not
 // actually perform a copy, but simply uses the underlying slice (if available) and
 // returns a sub-slice pointing to the same array. Since this requires access
 // to the underlying data, this is only available for a slice reader.
-func (d *decoder) Slice(n int) ([]byte, error) {
+func (d *decoder) slice(n int) ([]byte, error) {
 	return d.reader.Slice(n)
 }
 
-// ReadSlice reads a varint prefixed sub-slice without copying and returns the underlying
+// readSlice reads a varint prefixed sub-slice without copying and returns the underlying
 // byte slice.
-func (d *decoder) ReadSlice() (b []byte, err error) {
+func (d *decoder) readSlice() (b []byte, err error) {
 	var l uint64
-	if l, err = d.ReadUvarint(); err == nil {
-		b, err = d.Slice(int(l))
+	if l, err = d.readUvarint(); err == nil {
+		b, err = d.slice(int(l))
 	}
 	return
 }
 
-// Reset resets the decoder and makes it ready to be reused.
-func (d *decoder) Reset(data []byte, tb *Binary) {
+// reset resets the decoder and makes it ready to be reused.
+func (d *decoder) reset(data []byte, tb *instance) {
 	if d.reader == nil {
 		d.reader = newSliceReader(data)
 	} else {
-		d.reader.(*sliceReader).Reset(data)
+		if sr, ok := d.reader.(*sliceReader); ok {
+			sr.Reset(data)
+		} else {
+			d.reader = newSliceReader(data)
+		}
 	}
 	d.tb = tb
 }
 
-// scanToCache scans the type and caches it in the Binary instance
-func (d *decoder) scanToCache(t reflect.Type) (Codec, error) {
+// scanToCache scans the type and caches it in the internal instance
+func (d *decoder) scanToCache(t reflect.Type) (codec, error) {
 	if d.tb == nil {
-		return nil, Err("decoder", "scanToCache", "Binary", "nil")
+		return nil, Err("decoder", "scanToCache", "instance", "nil")
 	}
 
-	// Use the Binary instance's schema caching mechanism
+	// Use the instance's schema caching mechanism
 	return d.tb.scanToCache(t)
 }

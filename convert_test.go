@@ -8,7 +8,7 @@ import (
 func TestConvert_String(t *testing.T) {
 	v := "hi there"
 
-	b := ToBytes(v)
+	b := toBytes(v)
 	if len(b) == 0 {
 		t.Error("Expected non-empty bytes")
 	}
@@ -16,7 +16,7 @@ func TestConvert_String(t *testing.T) {
 		t.Errorf("Expected %q, got %q", v, string(b))
 	}
 
-	o := ToString(&b)
+	o := toString(&b)
 	if len(b) == 0 {
 		t.Error("Expected non-empty bytes")
 	}

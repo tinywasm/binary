@@ -31,11 +31,12 @@ func TestEncodePipelineSteps(t *testing.T) {
 	}
 
 	// Step 2: scanToCache (like in Encode)
-	schemas := make(map[reflect.Type]Codec)
-	c, err := scanToCache(typ, schemas)
+	var schemas []schemaEntry
+	c, err := scanToCache(typ, &schemas)
 	if err != nil {
 		t.Fatalf("scanToCache failed: %v", err)
 	}
+
 	t.Logf("Step 2 - codec type: %T", c)
 
 	// Step 3: Test a simple property of the value to see if it's valid

@@ -8,9 +8,9 @@ import (
 
 type testCustom string
 
-// GetBinaryCodec retrieves a custom binary codec.
-func (s *testCustom) GetBinaryCodec() Codec {
-	return new(stringCodec)
+// GetBinarycodec retrieves a custom binary codec.
+func (s *testCustom) GetBinarycodec() codec {
+	return new(stringcodec)
 }
 
 func TestScanner(t *testing.T) {
@@ -24,8 +24,8 @@ func TestScanner(t *testing.T) {
 	}
 
 	var b bytes.Buffer
-	e := NewEncoder(&b)
-	err = codec.EncodeTo(e, reflect.Indirect(reflect.ValueOf(s0v)))
+	e := newEncoder(&b)
+	err = codec.encodeTo(e, reflect.Indirect(reflect.ValueOf(s0v)))
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}

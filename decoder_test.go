@@ -7,9 +7,8 @@ import (
 )
 
 func TestBinaryDecodeStruct(t *testing.T) {
-	tb := New()
 	s := &s0{}
-	err := tb.Decode(s0b, s)
+	err := Decode(s0b, s)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -19,14 +18,13 @@ func TestBinaryDecodeStruct(t *testing.T) {
 }
 
 func TestBinaryDecodeToValueErrors(t *testing.T) {
-	tb := New()
 	b := []byte{1, 0, 0, 0}
 	var v uint32
-	err := tb.Decode(b, v)
+	err := Decode(b, v)
 	if err == nil {
 		t.Error("Expected error")
 	}
-	err = tb.Decode(b, &v)
+	err = Decode(b, &v)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -57,14 +55,14 @@ func (r *oneByteReader) Read(buf []byte) (n int, err error) {
 }
 
 func TestDecodeFromReader(t *testing.T) {
-	tb := New()
 	data := "data string"
-	encoded, err := tb.Encode(data)
+	var encoded []byte
+	err := Encode(data, &encoded)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	decoder := NewDecoder(&oneByteReader{content: encoded})
-	str, err := decoder.ReadString()
+	decoder := newDecoder(&oneByteReader{content: encoded})
+	str, err := decoder.readString()
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}

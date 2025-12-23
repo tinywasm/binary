@@ -28,18 +28,17 @@ type FixtureComplex struct {
 }
 
 func TestFixtureBasic_Cases(t *testing.T) {
-	tb := New()
-
 	runTest := func(t *testing.T, original *FixtureBasic) {
 		t.Helper()
 
-		encoded, err := tb.Encode(original)
+		var encoded []byte
+		err := Encode(original, &encoded)
 		if err != nil {
 			t.Fatalf("Encode failed for original %#v: %v", original, err)
 		}
 
 		decoded := &FixtureBasic{}
-		err = tb.Decode(encoded, decoded)
+		err = Decode(encoded, decoded)
 		if err != nil {
 			t.Fatalf("Decode failed: %v", err)
 		}
@@ -88,20 +87,18 @@ func TestFixtureBasic_Cases(t *testing.T) {
 	})
 }
 
-
 func TestFixtureComplex_Cases(t *testing.T) {
-	tb := New()
-
 	runTest := func(t *testing.T, original *FixtureComplex) {
 		t.Helper()
 
-		encoded, err := tb.Encode(original)
+		var encoded []byte
+		err := Encode(original, &encoded)
 		if err != nil {
 			t.Fatalf("Encode failed for original %#v: %v", original, err)
 		}
 
 		decoded := &FixtureComplex{}
-		err = tb.Decode(encoded, decoded)
+		err = Decode(encoded, decoded)
 		if err != nil {
 			t.Fatalf("Decode failed: %v", err)
 		}

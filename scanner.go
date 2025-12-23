@@ -9,9 +9,11 @@ import (
 // Note: Global schemas map removed - now using instance-based caching in Binary
 
 // scanToCache scans the type and caches in the local cache.
-func scanToCache(t reflect.Type, cache map[reflect.Type]Codec) (Codec, error) {
-	if c, ok := cache[t]; ok {
-		return c, nil
+func scanToCache(t reflect.Type, cache *[]schemaEntry) (codec, error) {
+	for _, entry := range *cache {
+		if entry.Type == t {
+			return entry.codec, nil
+		}
 	}
 
 	c, err := scan(t)
@@ -19,32 +21,35 @@ func scanToCache(t reflect.Type, cache map[reflect.Type]Codec) (Codec, error) {
 		return nil, err
 	}
 
-	cache[t] = c
+	*cache = append(*cache, schemaEntry{
+		Type:  t,
+		codec: c,
+	})
 	return c, nil
 }
 
 // Scan gets a codec for the type. Caching is now handled by Binary instance.
-func scan(t reflect.Type) (c Codec, err error) {
+func scan(t reflect.Type) (c codec, err error) {
 	return scanType(t)
 }
 
 // ScanType scans the type
-func scanType(t reflect.Type) (Codec, error) {
+func scanType(t reflect.Type) (codec, error) {
 	if t == nil {
 		return nil, Err(D.Value, D.Type, D.Nil)
 	}
 
 	// Check if the type or a pointer to it implements the marshaling interfaces.
-	pt := reflect.PtrTo(t)
+	pt := reflect.PointerTo(t)
 	if t.Implements(binaryMarshalerType) && pt.Implements(binaryUnmarshalerType) {
-		return new(binaryMarshalerCodec), nil
+		return new(binaryMarshalercodec), nil
 	}
 	if pt.Implements(binaryMarshalerType) && pt.Implements(binaryUnmarshalerType) {
-		return new(binaryMarshalerCodec), nil
+		return new(binaryMarshalercodec), nil
 	}
 
 	// TODO: Implement custom codec scanning when needed
-	// if custom, ok := scanCustomCodec(t); ok {
+	// if custom, ok := scanCustomcodec(t); ok {
 	//     return custom, nil
 	// }
 
@@ -56,24 +61,24 @@ func scanType(t reflect.Type) (Codec, error) {
 	switch t.Kind() {
 	case reflect.Ptr:
 		elem := t.Elem()
-		elemCodec, err := scanType(elem)
+		elemcodec, err := scanType(elem)
 		if err != nil {
 			return nil, err
 		}
 
-		return &reflectPointerCodec{
-			elemCodec: elemCodec,
+		return &reflectPointercodec{
+			elemcodec: elemcodec,
 		}, nil
 
 	case reflect.Array:
 		elem := t.Elem()
-		elemCodec, err := scanType(elem)
+		elemcodec, err := scanType(elem)
 		if err != nil {
 			return nil, err
 		}
 
-		return &reflectArrayCodec{
-			elemCodec: elemCodec,
+		return &reflectArraycodec{
+			elemcodec: elemcodec,
 		}, nil
 
 	case reflect.Slice:
@@ -83,38 +88,38 @@ func scanType(t reflect.Type) (Codec, error) {
 		// Fast-paths for simple numeric slices and string slices
 		switch elemKind {
 		case reflect.Uint8:
-			return new(byteSliceCodec), nil
+			return new(byteSlicecodec), nil
 		case reflect.Bool:
-			return new(boolSliceCodec), nil
+			return new(boolSlicecodec), nil
 		case reflect.Uint, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			return new(varuintSliceCodec), nil
+			return new(varuintSlicecodec), nil
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			return new(varintSliceCodec), nil
+			return new(varintSlicecodec), nil
 		case reflect.Ptr:
 			elemElem := elem.Elem()
-			elemCodec, err := scanType(elemElem)
+			elemcodec, err := scanType(elemElem)
 			if err != nil {
 				return nil, err
 			}
 
-			return &reflectSliceOfPtrCodec{
+			return &reflectSliceOfPtrcodec{
 				elemType:  elemElem,
-				elemCodec: elemCodec,
+				elemcodec: elemcodec,
 			}, nil
 		default:
-			elemCodec, err := scanType(elem)
+			elemcodec, err := scanType(elem)
 			if err != nil {
 				return nil, err
 			}
 
-			return &reflectSliceCodec{
-				elemCodec: elemCodec,
+			return &reflectSlicecodec{
+				elemcodec: elemcodec,
 			}, nil
 		}
 
 	case reflect.Struct:
 		s := scanStruct(t)
-		v := make(reflectStructCodec, 0, len(s.fields))
+		v := make(reflectStructcodec, 0, len(s.fields))
 		for _, i := range s.fields {
 			field := t.Field(i)
 			codec, err := scanType(field.Type)
@@ -123,26 +128,39 @@ func scanType(t reflect.Type) (Codec, error) {
 			}
 
 			// Append since unexported fields are skipped
-			v = append(v, fieldCodec{
+			v = append(v, fieldcodec{
 				Index: i,
-				Codec: codec,
+				codec: codec,
 			})
 		}
 
 		return &v, nil
 
 	case reflect.String:
-		return new(stringCodec), nil
+		return new(stringcodec), nil
 	case reflect.Bool:
-		return new(boolCodec), nil
+		return new(boolcodec), nil
 	case reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int, reflect.Int64:
-		return new(varintCodec), nil
+		return new(varintcodec), nil
 	case reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint, reflect.Uint64:
-		return new(varuintCodec), nil
+		return new(varuintcodec), nil
 	case reflect.Float32:
-		return new(float32Codec), nil
+		return new(float32codec), nil
 	case reflect.Float64:
-		return new(float64Codec), nil
+		return new(float64codec), nil
+	case reflect.Map:
+		keycodec, err := scanType(t.Key())
+		if err != nil {
+			return nil, err
+		}
+		valcodec, err := scanType(t.Elem())
+		if err != nil {
+			return nil, err
+		}
+		return &mapcodec{
+			keycodec:   keycodec,
+			valuecodec: valcodec,
+		}, nil
 	}
 
 	return nil, Err(D.Type, D.Binary, t.String(), D.Not, D.Supported)

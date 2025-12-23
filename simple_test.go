@@ -13,7 +13,6 @@ type basicStruct struct {
 }
 
 func TestBasicStruct(t *testing.T) {
-	tb := New()
 	v := &basicStruct{
 		Name:    "John",
 		Age:     25,
@@ -21,13 +20,14 @@ func TestBasicStruct(t *testing.T) {
 		IsAdult: true,
 	}
 
-	b, err := tb.Encode(v)
+	var b []byte
+	err := Encode(v, &b)
 	if err != nil {
 		t.Fatalf("Marshal error: %v", err)
 	}
 
 	s := &basicStruct{}
-	err = tb.Decode(b, s)
+	err = Decode(b, s)
 	if err != nil {
 		t.Fatalf("Unmarshal error: %v", err)
 	}

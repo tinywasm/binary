@@ -7,10 +7,10 @@ import (
 
 func TestScanToCacheWithNilType(t *testing.T) {
 	// Test what happens when we pass nil to scanToCache
-	cache := make(map[reflect.Type]Codec)
+	var cache []schemaEntry
 
 	// This should fail
-	_, err := scanToCache(nil, cache)
+	_, err := scanToCache(nil, &cache)
 	if err != nil {
 		t.Logf("✅ scanToCache correctly failed with nil: %v", err)
 	} else {
@@ -35,7 +35,7 @@ func TestScanToCacheWithNilType(t *testing.T) {
 
 	t.Logf("Testing scanToCache with valid type: %v", typ)
 
-	codec, err := scanToCache(typ, cache)
+	codec, err := scanToCache(typ, &cache)
 	if err != nil {
 		t.Fatalf("scanToCache failed: %v", err)
 	}
@@ -47,7 +47,7 @@ func TestScanToCacheWithNilType(t *testing.T) {
 	t.Logf("✅ scanToCache succeeded with codec: %T", codec)
 
 	// Test that it's cached
-	codec2, err := scanToCache(typ, cache)
+	codec2, err := scanToCache(typ, &cache)
 	if err != nil {
 		t.Fatalf("scanToCache failed on second call: %v", err)
 	}

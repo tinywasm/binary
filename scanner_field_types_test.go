@@ -29,10 +29,10 @@ func TestScanTypeStructFields(t *testing.T) {
 	}
 
 	// Verify we get a struct codec
-	if structCodec, ok := codec.(*reflectStructCodec); ok {
-		t.Logf("Struct codec has %d field codecs", len(*structCodec))
+	if structcodec, ok := codec.(*reflectStructcodec); ok {
+		t.Logf("Struct codec has %d field codecs", len(*structcodec))
 	} else {
-		t.Errorf("Expected *reflectStructCodec, got %T", codec)
+		t.Errorf("Expected *reflectStructcodec, got %T", codec)
 	}
 
 	// Test each field type individually to ensure all field types are supported
@@ -47,16 +47,16 @@ func TestScanTypeStructFields(t *testing.T) {
 		t.Logf("Testing Field %d: %s (Type: %v)", i, fieldName, fieldTyp.Kind())
 
 		// This tests the scanType function for different field types
-		fieldCodec, err := scanType(fieldTyp)
+		fieldcodec, err := scanType(fieldTyp)
 		if err != nil {
 			t.Fatalf("scanType failed for field %s: %v", fieldName, err)
 		}
 
 		// Just verify we got a non-nil codec
-		if fieldCodec == nil {
+		if fieldcodec == nil {
 			t.Errorf("Field %d (%s): got nil codec", i, fieldName)
 		} else {
-			t.Logf("Field %d (%s) codec: %T", i, fieldName, fieldCodec)
+			t.Logf("Field %d (%s) codec: %T", i, fieldName, fieldcodec)
 		}
 	}
 

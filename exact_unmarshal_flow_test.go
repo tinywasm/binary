@@ -14,18 +14,18 @@ func TestExactUnmarshalFlow(t *testing.T) {
 		Ssid:      []uint32{1, 2, 3},
 	}
 
-	// Marshal first (this should work)
-	tb := New()
-	b, err := tb.Encode(s)
+	// Encode first (this should work)
+	var b []byte
+	err := Encode(s, &b)
 	if err != nil {
-		t.Fatalf("Marshal failed: %v", err)
+		t.Fatalf("Encode failed: %v", err)
 	}
-	t.Logf("Marshal succeeded: %v", b)
+	t.Logf("Encode succeeded: %v", b)
 
 	// Now test the decode flow step by step
 	dest := &simpleStruct{}
 
-	// Step 1: Get the reflect value (decoder.go line 46)
+	// Step 1: Get the reflect value
 	rv := reflect.Indirect(reflect.ValueOf(dest))
 	t.Logf("rv.Type(): %v", rv.Type())
 
@@ -34,9 +34,9 @@ func TestExactUnmarshalFlow(t *testing.T) {
 		t.Fatal("rv.Type() is nil - this is the problem")
 	}
 
-	// Step 3: Call scanToCache directly (decoder.go line 52)
-	cache := make(map[reflect.Type]Codec)
-	codec, err := scanToCache(rv.Type(), cache)
+	// Step 3: Call scanToCache directly
+	var cache []schemaEntry
+	codec, err := scanToCache(rv.Type(), &cache)
 	if err != nil {
 		t.Fatalf("scanToCache failed: %v", err)
 	}

@@ -12,40 +12,43 @@ var (
 	binaryUnmarshalerType = reflect.TypeOf((*encoding.BinaryUnmarshaler)(nil)).Elem()
 )
 
-// Codec represents a single part Codec, which can encode and decode something.
-type Codec interface {
-	EncodeTo(*encoder, reflect.Value) error
-	DecodeTo(*decoder, reflect.Value) error
+// codec represents a single part codec, which can encode and decode something.
+type codec interface {
+	encodeTo(*encoder, reflect.Value) error
+	decodeTo(*decoder, reflect.Value) error
 }
 
 // ------------------------------------------------------------------------------
 
-type reflectArrayCodec struct {
-	elemCodec Codec // The codec of the array's elements
+type reflectArraycodec struct {
+	elemcodec codec // The codec of the array's elements
 }
 
 // Encode encodes a value into the encoder.
-func (c *reflectArrayCodec) EncodeTo(e *encoder, rv reflect.Value) (err error) {
+func (c *reflectArraycodec) encodeTo(e *encoder, rv reflect.Value) (err error) {
+	if rv.Kind() != reflect.Array {
+		return Err(D.Binary, "reflectArraycodec", D.Required, D.Type, D.Value)
+	}
 	l := rv.Len()
 	for i := 0; i < l; i++ {
 		idx := rv.Index(i)
 		// Use the element directly without Addr() - it should already be the right type
-		if err = c.elemCodec.EncodeTo(e, idx); err != nil {
+		if err = c.elemcodec.encodeTo(e, idx); err != nil {
 			return err
 		}
 	}
-	return nil
+	return e.err
 }
 
 // ------------------------------------------------------------------------------
 
-type binaryMarshalerCodec struct{}
+type binaryMarshalercodec struct{}
 
-func (c *binaryMarshalerCodec) EncodeTo(e *encoder, rv reflect.Value) error {
+func (c *binaryMarshalercodec) encodeTo(e *encoder, rv reflect.Value) (err error) {
 	// If this is a nil pointer, encode as zero-length payload
 	if rv.Kind() == reflect.Ptr && rv.IsNil() {
-		e.WriteUvarint(0)
-		return nil
+		e.writeUvarint(0)
+		return e.err
 	}
 
 	// Ensure we have a value that implements BinaryMarshaler (addr if needed)
@@ -66,16 +69,16 @@ func (c *binaryMarshalerCodec) EncodeTo(e *encoder, rv reflect.Value) error {
 		return err
 	}
 
-	e.WriteUvarint(uint64(len(b)))
+	e.writeUvarint(uint64(len(b)))
 	if len(b) > 0 {
-		e.Write(b)
+		e.write(b)
 	}
-	return nil
+	return err
 }
 
-func (c *binaryMarshalerCodec) DecodeTo(d *decoder, rv reflect.Value) error {
+func (c *binaryMarshalercodec) decodeTo(d *decoder, rv reflect.Value) error {
 	// Read length-prefixed payload and pass to UnmarshalBinary
-	l, err := d.ReadUvarint()
+	l, err := d.readUvarint()
 	if err != nil {
 		return err
 	}
@@ -83,7 +86,7 @@ func (c *binaryMarshalerCodec) DecodeTo(d *decoder, rv reflect.Value) error {
 	var b []byte
 	if l > 0 {
 		b = make([]byte, int(l))
-		if _, err = d.Read(b); err != nil {
+		if _, err = d.read(b); err != nil {
 			return err
 		}
 	}
@@ -109,43 +112,46 @@ func (c *binaryMarshalerCodec) DecodeTo(d *decoder, rv reflect.Value) error {
 }
 
 // Decode decodes into a reflect value from the decoder.
-func (c *reflectArrayCodec) DecodeTo(d *decoder, rv reflect.Value) (err error) {
+func (c *reflectArraycodec) decodeTo(d *decoder, rv reflect.Value) (err error) {
 	l := rv.Len()
 	for i := 0; i < l; i++ {
 		idx := rv.Index(i)
 		// Don't use Indirect here - use the indexed value directly
-		if err = c.elemCodec.DecodeTo(d, idx); err != nil {
+		if err = c.elemcodec.decodeTo(d, idx); err != nil {
 			return err
 		}
 	}
-	return nil
+	return err
 }
 
 // ------------------------------------------------------------------------------
 
-type reflectSliceCodec struct {
-	elemCodec Codec // The codec of the slice's elements
+type reflectSlicecodec struct {
+	elemcodec codec // The codec of the slice's elements
 }
 
 // Encode encodes a value into the encoder.
-func (c *reflectSliceCodec) EncodeTo(e *encoder, rv reflect.Value) (err error) {
+func (c *reflectSlicecodec) encodeTo(e *encoder, rv reflect.Value) (err error) {
+	if rv.Kind() != reflect.Slice {
+		return Err(D.Binary, "reflectSlicecodec", D.Required, D.Type, D.Slice)
+	}
 	l := rv.Len()
-	e.WriteUvarint(uint64(l))
+	e.writeUvarint(uint64(l))
 	for i := 0; i < l; i++ {
 		idx := rv.Index(i)
 
 		// Try using the element directly without Addr() - it should already be the right type
-		if err = c.elemCodec.EncodeTo(e, idx); err != nil {
+		if err = c.elemcodec.encodeTo(e, idx); err != nil {
 			return err
 		}
 	}
-	return nil
+	return e.err
 }
 
 // Decode decodes into a reflect value from the decoder.
-func (c *reflectSliceCodec) DecodeTo(d *decoder, rv reflect.Value) (err error) {
+func (c *reflectSlicecodec) decodeTo(d *decoder, rv reflect.Value) (err error) {
 	var l uint64
-	if l, err = d.ReadUvarint(); err == nil && l > 0 {
+	if l, err = d.readUvarint(); err == nil && l > 0 {
 		typ := rv.Type()
 		newSlice := reflect.MakeSlice(typ, int(l), int(l))
 		rv.Set(newSlice)
@@ -153,49 +159,52 @@ func (c *reflectSliceCodec) DecodeTo(d *decoder, rv reflect.Value) (err error) {
 		for i := 0; i < int(l); i++ {
 			idx := rv.Index(i)
 			v := reflect.Indirect(idx)
-			if err = c.elemCodec.DecodeTo(d, v); err != nil {
+			if err = c.elemcodec.decodeTo(d, v); err != nil {
 				return err
 			}
 		}
 	}
-	return nil
+	return err
 }
 
 // ------------------------------------------------------------------------------
 
-type reflectSliceOfPtrCodec struct {
-	elemCodec Codec // The codec of the slice's elements
+type reflectSliceOfPtrcodec struct {
+	elemcodec codec // The codec of the slice's elements
 	elemType  reflect.Type
 }
 
 // Encode encodes a value into the encoder.
-func (c *reflectSliceOfPtrCodec) EncodeTo(e *encoder, rv reflect.Value) (err error) {
+func (c *reflectSliceOfPtrcodec) encodeTo(e *encoder, rv reflect.Value) (err error) {
+	if rv.Kind() != reflect.Slice {
+		return Err(D.Binary, "reflectSliceOfPtrcodec", D.Required, D.Type, D.Slice)
+	}
 	l := rv.Len()
-	e.WriteUvarint(uint64(l))
+	e.writeUvarint(uint64(l))
 	for i := 0; i < l; i++ {
 		v := rv.Index(i)
 		isNil := v.IsNil()
 		e.writeBool(isNil)
 		if !isNil {
 			indirect := reflect.Indirect(v)
-			if err = c.elemCodec.EncodeTo(e, indirect); err != nil {
+			if err = c.elemcodec.encodeTo(e, indirect); err != nil {
 				return err
 			}
 		}
 	}
-	return nil
+	return e.err
 }
 
 // Decode decodes into a reflect value from the decoder.
-func (c *reflectSliceOfPtrCodec) DecodeTo(d *decoder, rv reflect.Value) (err error) {
+func (c *reflectSliceOfPtrcodec) decodeTo(d *decoder, rv reflect.Value) (err error) {
 	var l uint64
 	var isNil bool
-	if l, err = d.ReadUvarint(); err == nil && l > 0 {
+	if l, err = d.readUvarint(); err == nil && l > 0 {
 		typ := rv.Type()
 		newSlice := reflect.MakeSlice(typ, int(l), int(l))
 		rv.Set(newSlice)
 		for i := 0; i < int(l); i++ {
-			if isNil, err = d.ReadBool(); !isNil {
+			if isNil, err = d.readBool(); !isNil {
 				if err != nil {
 					return err
 				}
@@ -204,7 +213,7 @@ func (c *reflectSliceOfPtrCodec) DecodeTo(d *decoder, rv reflect.Value) (err err
 				// Create new pointer value and decode directly to it
 				newPtr := reflect.New(c.elemType)
 				indirect := reflect.Indirect(newPtr)
-				if err = c.elemCodec.DecodeTo(d, indirect); err != nil {
+				if err = c.elemcodec.decodeTo(d, indirect); err != nil {
 					return err
 				}
 				// Now copy the decoded value to the slice element
@@ -212,168 +221,187 @@ func (c *reflectSliceOfPtrCodec) DecodeTo(d *decoder, rv reflect.Value) (err err
 			}
 		}
 	}
-	return nil
+	return err
 }
 
 // ------------------------------------------------------------------------------
 
-type byteSliceCodec struct{}
+type byteSlicecodec struct{}
 
 // Encode encodes a value into the encoder.
-func (c *byteSliceCodec) EncodeTo(e *encoder, rv reflect.Value) (err error) {
+func (c *byteSlicecodec) encodeTo(e *encoder, rv reflect.Value) (err error) {
 	l := rv.Len()
 
-	e.WriteUvarint(uint64(l))
+	e.writeUvarint(uint64(l))
 	if l > 0 {
-		e.Write(rv.Bytes())
+		e.write(rv.Bytes())
 	}
-	return nil
+	return err
 }
 
 // Decode decodes into a reflect value from the decoder.
-func (c *byteSliceCodec) DecodeTo(d *decoder, rv reflect.Value) (err error) {
+func (c *byteSlicecodec) decodeTo(d *decoder, rv reflect.Value) (err error) {
+	if rv.Kind() != reflect.Slice {
+		return Err(D.Binary, "byteSlicecodec", D.Required, D.Type, D.Slice)
+	}
 	var l uint64
-	if l, err = d.ReadUvarint(); err == nil && l > 0 {
+	if l, err = d.readUvarint(); err == nil && l > 0 {
 		data := make([]byte, int(l))
-		if _, err = d.Read(data); err == nil {
+		if _, err = d.read(data); err == nil {
 			rv.SetBytes(data)
 		}
 	}
-	return nil
+	return err
 }
 
 // ------------------------------------------------------------------------------
 
-type boolSliceCodec struct{}
+type boolSlicecodec struct{}
 
 // Encode encodes a value into the encoder.
-func (c *boolSliceCodec) EncodeTo(e *encoder, rv reflect.Value) (err error) {
+func (c *boolSlicecodec) encodeTo(e *encoder, rv reflect.Value) (err error) {
 	l := rv.Len()
-	e.WriteUvarint(uint64(l))
-	if l > 0 {
-		// TODO: Need to implement proper interface access for []bool
-		// For now, this is a placeholder
-		dummy := make([]byte, l)
-		e.Write(dummy)
+	e.writeUvarint(uint64(l))
+	for i := 0; i < l; i++ {
+		e.writeBool(rv.Index(i).Bool())
 	}
-	return nil
+	return err
 }
 
 // Decode decodes into a reflect value from the decoder.
-func (c *boolSliceCodec) DecodeTo(d *decoder, rv reflect.Value) (err error) {
+func (c *boolSlicecodec) decodeTo(d *decoder, rv reflect.Value) (err error) {
+	if rv.Kind() != reflect.Slice {
+		return Err(D.Binary, "boolSlicecodec", D.Required, D.Type, D.Slice)
+	}
 	var l uint64
-	if l, err = d.ReadUvarint(); err == nil && l > 0 {
+	if l, err = d.readUvarint(); err == nil && l > 0 {
 		buf := make([]byte, l)
-		_, err = d.Read(buf)
+		_, err = d.read(buf)
 		if err != nil {
 			return err
 		}
-		// TODO: Need to implement proper bool slice creation
-		// For now, create empty slice
 		bools := make([]bool, l)
-		boolsValue := reflect.ValueOf(bools)
-		rv.Set(boolsValue)
+		for i, b := range buf {
+			bools[i] = b == 1
+		}
+		rv.Set(reflect.ValueOf(bools))
 	}
-	return nil
+	return err
 }
 
 // ------------------------------------------------------------------------------
 
-type varintSliceCodec struct{}
+type varintSlicecodec struct{}
 
 // Encode encodes a value into the encoder.
-func (c *varintSliceCodec) EncodeTo(e *encoder, rv reflect.Value) (err error) {
+func (c *varintSlicecodec) encodeTo(e *encoder, rv reflect.Value) (err error) {
+	if rv.Kind() != reflect.Slice {
+		return Err(D.Binary, "varintSlicecodec", D.Required, D.Type, D.Slice)
+	}
 	l := rv.Len()
-	e.WriteUvarint(uint64(l))
+	e.writeUvarint(uint64(l))
 	for i := 0; i < l; i++ {
 		idx := rv.Index(i)
 		intVal := idx.Int()
-		e.WriteVarint(intVal)
+		e.writeVarint(intVal)
 	}
-	return nil
+	return e.err
 }
 
 // Decode decodes into a reflect value from the decoder.
-func (c *varintSliceCodec) DecodeTo(d *decoder, rv reflect.Value) (err error) {
+func (c *varintSlicecodec) decodeTo(d *decoder, rv reflect.Value) (err error) {
+	if rv.Kind() != reflect.Slice {
+		return Err(D.Binary, "varintSlicecodec", D.Required, D.Type, D.Slice)
+	}
 	var l uint64
-	if l, err = d.ReadUvarint(); err == nil && l > 0 {
+	if l, err = d.readUvarint(); err == nil && l > 0 {
 		typ := rv.Type()
 		newSlice := reflect.MakeSlice(typ, int(l), int(l))
 		rv.Set(newSlice)
 		for i := 0; i < int(l); i++ {
 			var v int64
-			if v, err = d.ReadVarint(); err == nil {
+			if v, err = d.readVarint(); err == nil {
 				idx := rv.Index(i)
 				idx.SetInt(v)
+			} else {
+				return err
 			}
 		}
 	}
-	return nil
+	return err
 }
 
 // ------------------------------------------------------------------------------
 
-type varuintSliceCodec struct{}
+type varuintSlicecodec struct{}
 
 // Encode encodes a value into the encoder.
-func (c *varuintSliceCodec) EncodeTo(e *encoder, rv reflect.Value) (err error) {
+func (c *varuintSlicecodec) encodeTo(e *encoder, rv reflect.Value) (err error) {
+	if rv.Kind() != reflect.Slice {
+		return Err(D.Binary, "varuintSlicecodec", D.Required, D.Type, D.Slice)
+	}
 	l := rv.Len()
-	e.WriteUvarint(uint64(l))
+	e.writeUvarint(uint64(l))
 	for i := 0; i < l; i++ {
 		idx := rv.Index(i)
 		uintVal := idx.Uint()
-		e.WriteUvarint(uintVal)
+		e.writeUvarint(uintVal)
 	}
-	return nil
+	return e.err
 }
 
 // Decode decodes into a reflect value from the decoder.
-func (c *varuintSliceCodec) DecodeTo(d *decoder, rv reflect.Value) (err error) {
+func (c *varuintSlicecodec) decodeTo(d *decoder, rv reflect.Value) (err error) {
+	if rv.Kind() != reflect.Slice {
+		return Err(D.Binary, "varuintSlicecodec", D.Required, D.Type, D.Slice)
+	}
 	var l, v uint64
-	if l, err = d.ReadUvarint(); err == nil && l > 0 {
+	if l, err = d.readUvarint(); err == nil && l > 0 {
 		typ := rv.Type()
 		newSlice := reflect.MakeSlice(typ, int(l), int(l))
 		rv.Set(newSlice)
 		for i := 0; i < int(l); i++ {
-			if v, err = d.ReadUvarint(); err == nil {
+			if v, err = d.readUvarint(); err == nil {
 				idx := rv.Index(i)
 				idx.SetUint(v)
+			} else {
+				return err
 			}
 		}
 	}
-	return nil
+	return err
 }
 
 // ------------------------------------------------------------------------------
 
-type reflectPointerCodec struct {
-	elemCodec Codec
+type reflectPointercodec struct {
+	elemcodec codec
 }
 
 // Encode encodes a value into the encoder.
-func (c *reflectPointerCodec) EncodeTo(e *encoder, rv reflect.Value) (err error) {
+func (c *reflectPointercodec) encodeTo(e *encoder, rv reflect.Value) (err error) {
+	if rv.Kind() != reflect.Ptr {
+		return Err(D.Binary, "reflectPointercodec", D.Required, D.Type, D.Pointer)
+	}
+
 	if rv.IsNil() {
 		e.writeBool(true)
-		return nil
+		return err
 	}
 
 	e.writeBool(false)
 	elem := rv.Elem()
-	err = c.elemCodec.EncodeTo(e, elem)
-	if err != nil {
-		return err
-	}
-	return nil
+	return c.elemcodec.encodeTo(e, elem)
 }
 
 // Decode decodes into a reflect value from the decoder.
-func (c *reflectPointerCodec) DecodeTo(d *decoder, rv reflect.Value) (err error) {
-	isNil, err := d.ReadBool()
+func (c *reflectPointercodec) decodeTo(d *decoder, rv reflect.Value) (err error) {
+	isNil, err := d.readBool()
 	if err != nil {
 		return err
 	}
 	if isNil {
-		return nil
+		return err
 	}
 
 	// Check if the pointer is nil and create a new value if needed
@@ -386,176 +414,236 @@ func (c *reflectPointerCodec) DecodeTo(d *decoder, rv reflect.Value) (err error)
 	}
 
 	elem := rv.Elem()
-	return c.elemCodec.DecodeTo(d, elem)
+	return c.elemcodec.decodeTo(d, elem)
 }
 
 // ------------------------------------------------------------------------------
 
-type reflectStructCodec []fieldCodec
+type reflectStructcodec []fieldcodec
 
-type fieldCodec struct {
+type fieldcodec struct {
 	Index int   // The index of the field
-	Codec Codec // The codec to use for this field
+	codec codec // The codec to use for this field
 }
 
 // Encode encodes a value into the encoder.
-func (c reflectStructCodec) EncodeTo(e *encoder, rv reflect.Value) (err error) {
+func (c reflectStructcodec) encodeTo(e *encoder, rv reflect.Value) (err error) {
+	if rv.Kind() != reflect.Struct {
+		return Err(D.Binary, "reflectStructcodec", D.Required, D.Type, D.Value)
+	}
 	for _, i := range c {
 		field := rv.Field(i.Index)
-		if err = i.Codec.EncodeTo(e, field); err != nil {
+		if err = i.codec.encodeTo(e, field); err != nil {
 			return err
 		}
 	}
-	return nil
+	return e.err
 }
 
 // Decode decodes into a reflect value from the decoder.
-func (c reflectStructCodec) DecodeTo(d *decoder, rv reflect.Value) (err error) {
-	for _, fieldCodec := range c {
-		v := rv.Field(fieldCodec.Index)
+func (c reflectStructcodec) decodeTo(d *decoder, rv reflect.Value) (err error) {
+	if rv.Kind() != reflect.Struct {
+		return Err(D.Binary, "reflectStructcodec", D.Required, D.Type, D.Value)
+	}
+
+	for _, fieldcodec := range c {
+		v := rv.Field(fieldcodec.Index)
 
 		// Debug: Check if codec is nil
-		if fieldCodec.Codec == nil {
-			return Err(D.Field, fieldCodec.Index, "codec", D.Nil)
+		if fieldcodec.codec == nil {
+			return Err(D.Field, fieldcodec.Index, "codec", D.Nil)
 		}
 
 		// Follow the original logic: handle pointers vs regular fields differently
 		switch v.Kind() {
 		case reflect.Ptr:
 			// For pointer fields, pass the value directly to the codec
-			err = fieldCodec.Codec.DecodeTo(d, v)
+			err = fieldcodec.codec.decodeTo(d, v)
 		default:
 			// For non-pointer fields that can be set, use Indirect
 			// TODO: Implement CanSet() check when available
 			indirect := reflect.Indirect(v)
-			err = fieldCodec.Codec.DecodeTo(d, indirect)
+			err = fieldcodec.codec.decodeTo(d, indirect)
 		}
 
 		if err != nil {
 			return err
 		}
 	}
-	return nil
+	return err
 }
 
 // ------------------------------------------------------------------------------
 
-type stringCodec struct{}
+type stringcodec struct{}
 
 // Encode encodes a value into the encoder.
-func (c *stringCodec) EncodeTo(e *encoder, rv reflect.Value) error {
+func (c *stringcodec) encodeTo(e *encoder, rv reflect.Value) (err error) {
 	s := rv.String()
-	e.WriteString(s)
-	return nil
+	e.writeString(s)
+	return e.err
 }
 
 // Decode decodes into a reflect value from the decoder.
-func (c *stringCodec) DecodeTo(d *decoder, rv reflect.Value) (err error) {
+func (c *stringcodec) decodeTo(d *decoder, rv reflect.Value) (err error) {
 	var s string
-	if s, err = d.ReadString(); err == nil {
+	if s, err = d.readString(); err == nil {
 		rv.SetString(s)
 	}
-	return nil
+	return err
 }
 
 // ------------------------------------------------------------------------------
 
-type boolCodec struct{}
+type boolcodec struct{}
 
 // Encode encodes a value into the encoder.
-func (c *boolCodec) EncodeTo(e *encoder, rv reflect.Value) error {
+func (c *boolcodec) encodeTo(e *encoder, rv reflect.Value) (err error) {
 	boolVal := rv.Bool()
 	e.writeBool(boolVal)
-	return nil
+	return e.err
 }
 
 // Decode decodes into a reflect value from the decoder.
-func (c *boolCodec) DecodeTo(d *decoder, rv reflect.Value) (err error) {
+func (c *boolcodec) decodeTo(d *decoder, rv reflect.Value) (err error) {
 	var out bool
-	if out, err = d.ReadBool(); err == nil {
+	if out, err = d.readBool(); err == nil {
 		rv.SetBool(out)
 	}
-	return nil
+	return err
 }
 
 // ------------------------------------------------------------------------------
 
-type varintCodec struct{}
+type varintcodec struct{}
 
 // Encode encodes a value into the encoder.
-func (c *varintCodec) EncodeTo(e *encoder, rv reflect.Value) error {
+func (c *varintcodec) encodeTo(e *encoder, rv reflect.Value) (err error) {
 	intVal := rv.Int()
-	e.WriteVarint(intVal)
-	return nil
+	e.writeVarint(intVal)
+	return e.err
 }
 
 // Decode decodes into a reflect value from the decoder.
-func (c *varintCodec) DecodeTo(d *decoder, rv reflect.Value) (err error) {
+func (c *varintcodec) decodeTo(d *decoder, rv reflect.Value) (err error) {
 	var v int64
-	if v, err = d.ReadVarint(); err != nil {
+	if v, err = d.readVarint(); err != nil {
 		return err
 	}
 	rv.SetInt(v)
-	return nil
+	return err
 }
 
 // ------------------------------------------------------------------------------
 
-type varuintCodec struct{}
+type varuintcodec struct{}
 
 // Encode encodes a value into the encoder.
-func (c *varuintCodec) EncodeTo(e *encoder, rv reflect.Value) error {
+func (c *varuintcodec) encodeTo(e *encoder, rv reflect.Value) (err error) {
 	uintVal := rv.Uint()
-	e.WriteUvarint(uintVal)
-	return nil
+	e.writeUvarint(uintVal)
+	return e.err
 }
 
 // Decode decodes into a reflect value from the decoder.
-func (c *varuintCodec) DecodeTo(d *decoder, rv reflect.Value) (err error) {
+func (c *varuintcodec) decodeTo(d *decoder, rv reflect.Value) (err error) {
 	var v uint64
-	if v, err = d.ReadUvarint(); err != nil {
+	if v, err = d.readUvarint(); err != nil {
 		return err
 	}
 	rv.SetUint(v)
-	return nil
+	return err
 }
 
 // ------------------------------------------------------------------------------
 
-type float32Codec struct{}
+type float32codec struct{}
 
 // Encode encodes a value into the encoder.
-func (c *float32Codec) EncodeTo(e *encoder, rv reflect.Value) error {
+func (c *float32codec) encodeTo(e *encoder, rv reflect.Value) (err error) {
 	floatVal := rv.Float()
-	e.WriteFloat32(float32(floatVal))
-	return nil
+	e.writeFloat32(float32(floatVal))
+	return e.err
 }
 
 // Decode decodes into a reflect value from the decoder.
-func (c *float32Codec) DecodeTo(d *decoder, rv reflect.Value) (err error) {
+func (c *float32codec) decodeTo(d *decoder, rv reflect.Value) (err error) {
 	var v float32
-	if v, err = d.ReadFloat32(); err == nil {
+	if v, err = d.readFloat32(); err == nil {
 		rv.SetFloat(float64(v))
 	}
-	return nil
+	return err
 }
 
 // ------------------------------------------------------------------------------
 
-type float64Codec struct{}
+type float64codec struct{}
 
 // Encode encodes a value into the encoder.
-func (c *float64Codec) EncodeTo(e *encoder, rv reflect.Value) error {
+func (c *float64codec) encodeTo(e *encoder, rv reflect.Value) (err error) {
 	floatVal := rv.Float()
-	e.WriteFloat64(floatVal)
-	return nil
+	e.writeFloat64(floatVal)
+	return e.err
 }
 
 // Decode decodes into a reflect value from the decoder.
-func (c *float64Codec) DecodeTo(d *decoder, rv reflect.Value) (err error) {
+func (c *float64codec) decodeTo(d *decoder, rv reflect.Value) (err error) {
 	var v float64
-	if v, err = d.ReadFloat64(); err == nil {
+	if v, err = d.readFloat64(); err == nil {
 		rv.SetFloat(v)
 	}
-	return nil
+	return err
+}
+
+// ------------------------------------------------------------------------------
+
+type mapcodec struct {
+	keycodec   codec
+	valuecodec codec
+}
+
+// Encode encodes a value into the encoder.
+func (c *mapcodec) encodeTo(e *encoder, rv reflect.Value) (err error) {
+	if rv.Kind() != reflect.Map {
+		return Err(D.Binary, "mapcodec", D.Required, D.Type, D.Dictionary)
+	}
+	l := rv.Len()
+	e.writeUvarint(uint64(l))
+	iter := rv.MapRange()
+	for iter.Next() {
+		if err = c.keycodec.encodeTo(e, iter.Key()); err != nil {
+			return err
+		}
+		if err = c.valuecodec.encodeTo(e, iter.Value()); err != nil {
+			return err
+		}
+	}
+	return e.err
+}
+
+// Decode decodes into a reflect value from the decoder.
+func (c *mapcodec) decodeTo(d *decoder, rv reflect.Value) (err error) {
+	if rv.Kind() != reflect.Map {
+		return Err(D.Binary, "mapcodec", D.Required, D.Type, D.Dictionary)
+	}
+	var l uint64
+	if l, err = d.readUvarint(); err == nil {
+		typ := rv.Type()
+		newMap := reflect.MakeMapWithSize(typ, int(l))
+		keyTyp := typ.Key()
+		valTyp := typ.Elem()
+		for i := 0; i < int(l); i++ {
+			newKey := reflect.New(keyTyp).Elem()
+			if err = c.keycodec.decodeTo(d, newKey); err != nil {
+				return err
+			}
+			newVal := reflect.New(valTyp).Elem()
+			if err = c.valuecodec.decodeTo(d, newVal); err != nil {
+				return err
+			}
+			newMap.SetMapIndex(newKey, newVal)
+		}
+		rv.Set(newMap)
+	}
+	return err
 }

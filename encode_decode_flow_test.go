@@ -15,8 +15,8 @@ func TestDecodeFlow(t *testing.T) {
 	}
 
 	// Encode
-	tb := New()
-	b, err := tb.Encode(original)
+	var b []byte
+	err := Encode(original, &b)
 	if err != nil {
 		t.Fatalf("Encode failed: %v", err)
 	}
@@ -45,7 +45,7 @@ func TestDecodeFlow(t *testing.T) {
 	t.Logf("scanType succeeded: %T", codec)
 
 	// Now test the actual decode
-	err = tb.Decode(b, decoded)
+	err = Decode(b, decoded)
 	if err != nil {
 		t.Fatalf("Decode failed: %v", err)
 	}

@@ -34,10 +34,10 @@ func TestDecoderFullFlow(t *testing.T) {
 	t.Logf("rv.Type() = %v, Kind: %v", typ, typ.Kind())
 
 	// Create a mock cache like in decoder
-	cache := make(map[reflect.Type]Codec)
+	var cache []schemaEntry
 
 	// decoder.go line 52: scanToCache(rv.Type(), d.schemas)
-	codec, err := scanToCache(typ, cache)
+	codec, err := scanToCache(typ, &cache)
 	if err != nil {
 		t.Fatalf("scanToCache failed: %v", err)
 	}

@@ -148,25 +148,25 @@ func (r *sliceReader) Reset(b []byte) {
 
 // streamReader represents a reader implementation for a generic reader (i.e. streams)
 type streamReader struct {
-	Reader
+	genericReader
 	scratch [10]byte
 }
 
-// Reader represents the interface a reader should implement.
-type Reader interface {
+// genericReader represents the interface a reader should implement.
+type genericReader interface {
 	io.Reader
 	io.ByteReader
 }
 
 // newStreamReader returns a new stream reader
 func newStreamReader(r io.Reader) *streamReader {
-	rdr, ok := r.(Reader)
+	rdr, ok := r.(genericReader)
 	if !ok {
 		rdr = bufio.NewReader(r)
 	}
 
 	return &streamReader{
-		Reader: rdr,
+		genericReader: rdr,
 	}
 }
 

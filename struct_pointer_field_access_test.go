@@ -35,16 +35,16 @@ func TestStructPointerFieldAccess(t *testing.T) {
 		}
 
 		// Verify marshal/unmarshal roundtrip
-		tb := New()
-		payload, err := tb.Encode(original)
+		var payload []byte
+		err := Encode(original, &payload)
 		if err != nil {
-			t.Fatalf("Marshal failed: %v", err)
+			t.Fatalf("Encode failed: %v", err)
 		}
 
 		decoded := &OuterStruct{}
-		err = tb.Decode(payload, decoded)
+		err = Decode(payload, decoded)
 		if err != nil {
-			t.Fatalf("Unmarshal failed: %v", err)
+			t.Fatalf("Decode failed: %v", err)
 		}
 
 		// Verify the result
@@ -58,18 +58,18 @@ func TestStructPointerFieldAccess(t *testing.T) {
 
 	// Test case 2: Nil pointer
 	t.Run("NilPointer", func(t *testing.T) {
-		tb := New()
 		original := &OuterStruct{Ptr: nil}
 
-		payload, err := tb.Encode(original)
+		var payload []byte
+		err := Encode(original, &payload)
 		if err != nil {
-			t.Fatalf("Marshal failed: %v", err)
+			t.Fatalf("Encode failed: %v", err)
 		}
 
 		decoded := &OuterStruct{}
-		err = tb.Decode(payload, decoded)
+		err = Decode(payload, decoded)
 		if err != nil {
-			t.Fatalf("Unmarshal failed: %v", err)
+			t.Fatalf("Decode failed: %v", err)
 		}
 
 		// Verify nil pointer is preserved
