@@ -41,6 +41,11 @@ type User struct {
     Hidden  string `binary:"-"` // Skipped (Binary tagged)
 }
 
+// Optional: Implement this method to improve performance (avoids reflection)
+func (u *User) HandlerName() string {
+    return "users"
+}
+
 func main() {
     user := &User{
         Name:    "Alice",
