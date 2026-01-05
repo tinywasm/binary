@@ -26,6 +26,17 @@ func newDecoder(r io.Reader) *decoder {
 
 // decode decodes a value by reading from the underlying io.Reader.
 func (d *decoder) decode(v any) (err error) {
+	// Fast path: check if type implements namedHandler
+	if nh, ok := v.(namedHandler); ok {
+		name := nh.HandlerName()
+		if c, typ, found := d.tb.findSchemaByName(name); found {
+			rv := reflect.Indirect(reflect.ValueOf(v))
+			if rv.Type() == typ {
+				return c.decodeTo(d, rv)
+			}
+		}
+	}
+
 	rv := reflect.Indirect(reflect.ValueOf(v))
 	canAddr := rv.CanAddr()
 	if !canAddr {
@@ -34,7 +45,13 @@ func (d *decoder) decode(v any) (err error) {
 
 	// Scan the type (this will load from cache)
 	var c codec
-	if c, err = d.scanToCache(rv.Type()); err == nil {
+	typ := rv.Type()
+	var name string
+	if nh, ok := v.(namedHandler); ok {
+		name = nh.HandlerName()
+	}
+
+	if c, err = d.scanToCache(typ, name); err == nil {
 		err = c.decodeTo(d, rv)
 	}
 
@@ -163,11 +180,11 @@ func (d *decoder) reset(data []byte, tb *instance) {
 }
 
 // scanToCache scans the type and caches it in the internal instance
-func (d *decoder) scanToCache(t reflect.Type) (codec, error) {
+func (d *decoder) scanToCache(t reflect.Type, name string) (codec, error) {
 	if d.tb == nil {
 		return nil, Err("decoder", "scanToCache", "instance", "nil")
 	}
 
 	// Use the instance's schema caching mechanism
-	return d.tb.scanToCache(t)
+	return d.tb.scanToCache(t, name)
 }

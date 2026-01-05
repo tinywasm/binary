@@ -219,18 +219,18 @@ func TestPerfectCoverage(t *testing.T) {
 		inst.decodeFrom(bytes.NewReader([]byte{4, 'a', 'b', 'c', 'd'}), &res)
 
 		// scanToCache(nil) directly
-		_, err := inst.scanToCache(nil)
+		_, err := inst.scanToCache(nil, "")
 		if err == nil {
 			t.Error("expected error scanning nil type")
 		}
 
 		// findSchema hit
 		typ := reflect.TypeOf(0)
-		inst.scanToCache(typ)
-		inst.scanToCache(typ)
+		inst.scanToCache(typ, "")
+		inst.scanToCache(typ, "")
 
 		// scanType error
-		_, err = inst.scanToCache(reflect.TypeOf(make(chan int)))
+		_, err = inst.scanToCache(reflect.TypeOf(make(chan int)), "")
 		if err == nil {
 			t.Error("expected scanType error")
 		}

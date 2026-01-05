@@ -14,6 +14,10 @@ Binary is a high-performance binary serialization library for Go, specifically d
 - **Field Skipping**: Automatically skips private fields and respects `json:"-"` or `binary:"-"` tags.
 - **Zero Dependencies**: Core logic is lightweight and self-contained.
 
+## Benchmarks
+
+For detailed performance comparisons against the standard library and the impact of name-based optimization, see [BENCHMARK.md](docs/BENCHMARK.md).
+
 ## Installation
 
 ```bash

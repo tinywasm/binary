@@ -128,13 +128,13 @@ func TestCoverageGaps(t *testing.T) {
 		}
 
 		// scanToCache errors
-		_, err = e.scanToCache(nil)
+		_, err = e.scanToCache(nil, "")
 		if err == nil {
 			t.Error("Expected error scanning nil type")
 		}
 
 		d = newDecoder(nil)
-		_, err = d.scanToCache(reflect.TypeOf(0))
+		_, err = d.scanToCache(reflect.TypeOf(0), "")
 		if err == nil {
 			t.Error("Expected error scanning with nil tb")
 		}
@@ -158,7 +158,7 @@ func TestCoverageGaps(t *testing.T) {
 		// Loop more to ensure eviction
 		for i := 1; i <= 1005; i++ {
 			typ := reflect.ArrayOf(i, reflect.TypeOf(byte(0)))
-			inst.scanToCache(typ)
+			inst.scanToCache(typ, "")
 		}
 		if len(inst.schemas) > 1000 {
 			t.Errorf("Cache eviction failed, length: %d", len(inst.schemas))
@@ -335,10 +335,10 @@ func TestCoverageGaps(t *testing.T) {
 
 		inst := newInstance()
 		typ := reflect.TypeOf(0)
-		inst.scanToCache(typ)
-		inst.scanToCache(typ) // Double scan to hit findSchema
+		inst.scanToCache(typ, "")
+		inst.scanToCache(typ, "") // Double scan to hit findSchema
 
-		_, err = inst.scanToCache(reflect.TypeOf(make(chan int)))
+		_, err = inst.scanToCache(reflect.TypeOf(make(chan int)), "")
 		if err == nil {
 			t.Error("expected error scanning chan")
 		}

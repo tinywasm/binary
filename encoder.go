@@ -43,12 +43,28 @@ func (e *encoder) encode(v any) (err error) {
 		return Errf("cannot encode nil value")
 	}
 
-	// Scan the type (this will load from cache)
+	// Fast path: check if type implements namedHandler
+	if nh, ok := v.(namedHandler); ok {
+		name := nh.HandlerName()
+		if c, typ, found := e.tb.findSchemaByName(name); found {
+			rv := reflect.Indirect(reflect.ValueOf(v))
+			if rv.Type() == typ {
+				return c.encodeTo(e, rv)
+			}
+		}
+	}
+
+	// Normal path: Scan the type (this will load from cache)
 	rv := reflect.Indirect(reflect.ValueOf(v))
 	typ := rv.Type()
 
 	var c codec
-	if c, err = e.scanToCache(typ); err == nil {
+	var name string
+	if nh, ok := v.(namedHandler); ok {
+		name = nh.HandlerName()
+	}
+
+	if c, err = e.tb.scanToCache(typ, name); err == nil {
 		err = c.encodeTo(e, rv)
 	}
 
@@ -150,11 +166,11 @@ func (e *encoder) writeString(v string) {
 }
 
 // scanToCache scans the type and caches it in the internal instance
-func (e *encoder) scanToCache(t reflect.Type) (codec, error) {
+func (e *encoder) scanToCache(t reflect.Type, name string) (codec, error) {
 	if e.tb == nil {
 		return nil, Err("encoder", "scanToCache", "instance", "nil")
 	}
 
 	// Use the instance's schema caching mechanism
-	return e.tb.scanToCache(t)
+	return e.tb.scanToCache(t, name)
 }

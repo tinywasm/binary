@@ -14,6 +14,12 @@ var (
 	once   sync.Once
 )
 
+// namedHandler allows types to provide a stable name for schema caching.
+// This helps avoid reflect.ValueOf() calls on every encode/decode.
+type namedHandler interface {
+	HandlerName() string
+}
+
 func getInstance() *instance {
 	once.Do(func() {
 		global = newInstance()
@@ -88,6 +94,7 @@ type instance struct {
 type schemaEntry struct {
 	Type  reflect.Type
 	codec codec
+	Name  string // Optional handler name
 }
 
 func newInstance(args ...any) *instance {
@@ -182,8 +189,20 @@ func (tb *instance) findSchema(t reflect.Type) (codec, bool) {
 	return nil, false
 }
 
+// findSchemaByName performs a linear search in the schemas cache by handler name
+func (tb *instance) findSchemaByName(name string) (codec, reflect.Type, bool) {
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+	for _, entry := range tb.schemas {
+		if entry.Name == name {
+			return entry.codec, entry.Type, true
+		}
+	}
+	return nil, nil, false
+}
+
 // addSchema adds a new schema to the slice-based cache
-func (tb *instance) addSchema(t reflect.Type, codec codec) {
+func (tb *instance) addSchema(t reflect.Type, codec codec, name string) {
 	tb.mu.Lock()
 	defer tb.mu.Unlock()
 	// Simple cache size limit (optional, for memory control)
@@ -195,16 +214,18 @@ func (tb *instance) addSchema(t reflect.Type, codec codec) {
 	tb.schemas = append(tb.schemas, schemaEntry{
 		Type:  t,
 		codec: codec,
+		Name:  name,
 	})
 }
 
 // scanToCache scans the type and caches it in the instance using slice-based cache
-func (tb *instance) scanToCache(t reflect.Type) (codec, error) {
+func (tb *instance) scanToCache(t reflect.Type, name string) (codec, error) {
 	if t == nil {
 		return nil, Err("scanToCache", "type", "nil")
 	}
 
-	// Check if we already have this schema cached
+	// Double check if we already have this schema cached by type
+	// (Though callers usually check first, it's safer here)
 	if c, found := tb.findSchema(t); found {
 		return c, nil
 	}
@@ -216,7 +237,7 @@ func (tb *instance) scanToCache(t reflect.Type) (codec, error) {
 	}
 
 	// Cache the schema
-	tb.addSchema(t, c)
+	tb.addSchema(t, c, name)
 
 	return c, nil
 }

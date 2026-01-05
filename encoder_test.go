@@ -117,6 +117,55 @@ func BenchmarkJSON(b *testing.B) {
 	})
 }
 
+type namedMsg struct {
+	msg
+}
+
+func (m *namedMsg) HandlerName() string { return "namedMsg" }
+
+func BenchmarkNamedHandler(b *testing.B) {
+	v := testMsg
+	nv := namedMsg{msg: testMsg}
+	var enc []byte
+	Encode(&nv, &enc)
+
+	b.Run("regular/marshal", func(b *testing.B) {
+		b.ReportAllocs()
+		b.ResetTimer()
+		var out []byte
+		for n := 0; n < b.N; n++ {
+			Encode(&v, &out)
+		}
+	})
+
+	b.Run("named/marshal", func(b *testing.B) {
+		b.ReportAllocs()
+		b.ResetTimer()
+		var out []byte
+		for n := 0; n < b.N; n++ {
+			Encode(&nv, &out)
+		}
+	})
+
+	b.Run("regular/unmarshal", func(b *testing.B) {
+		b.ReportAllocs()
+		b.ResetTimer()
+		var out msg
+		for n := 0; n < b.N; n++ {
+			Decode(enc, &out)
+		}
+	})
+
+	b.Run("named/unmarshal", func(b *testing.B) {
+		b.ReportAllocs()
+		b.ResetTimer()
+		var out namedMsg
+		for n := 0; n < b.N; n++ {
+			Decode(enc, &out)
+		}
+	})
+}
+
 func TestBinaryEncodeStruct(t *testing.T) {
 	var b []byte
 	err := Encode(s0v, &b)
