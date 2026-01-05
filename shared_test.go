@@ -204,3 +204,10 @@ func TestFixtureComplex_Cases(t *testing.T) {
 	})
 
 }
+
+type testCustom string
+
+// GetBinarycodec retrieves a custom binary codec.
+func (s *testCustom) GetBinarycodec() codec {
+	return new(stringcodec)
+}

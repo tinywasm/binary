@@ -8,26 +8,6 @@ import (
 
 // Note: Global schemas map removed - now using instance-based caching in Binary
 
-// scanToCache scans the type and caches in the local cache.
-func scanToCache(t reflect.Type, cache *[]schemaEntry) (codec, error) {
-	for _, entry := range *cache {
-		if entry.Type == t {
-			return entry.codec, nil
-		}
-	}
-
-	c, err := scan(t)
-	if err != nil {
-		return nil, err
-	}
-
-	*cache = append(*cache, schemaEntry{
-		Type:  t,
-		codec: c,
-	})
-	return c, nil
-}
-
 // Scan gets a codec for the type. Caching is now handled by Binary instance.
 func scan(t reflect.Type) (c codec, err error) {
 	return scanType(t)
