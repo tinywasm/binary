@@ -66,6 +66,11 @@ func main() {
     // Output: {Name:Alice Age:30 secret: Ignored: Hidden:}
 }
 ```
+
+## Documentation
+
+- [Benchmarks](docs/BENCHMARK.md) - Performance comparisons
+- [Message Envelope](docs/message-envelope.md) - Inter-module communication format
 ## API
 
 - `Encode(input, output any) error`: Encodes into `*[]byte` or `io.Writer`.
