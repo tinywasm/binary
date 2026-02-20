@@ -40,7 +40,7 @@ func (d *decoder) decode(v any) (err error) {
 	rv := reflect.Indirect(reflect.ValueOf(v))
 	canAddr := rv.CanAddr()
 	if !canAddr {
-		return Err(D.Binary, "decoder", D.Required, D.Type, D.Pointer)
+		return Err("binary", "decoder", "type", "pointer", "required")
 	}
 
 	// Scan the type (this will load from cache)

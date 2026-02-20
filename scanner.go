@@ -16,7 +16,7 @@ func scan(t reflect.Type) (c codec, err error) {
 // ScanType scans the type
 func scanType(t reflect.Type) (codec, error) {
 	if t == nil {
-		return nil, Err(D.Value, D.Type, D.Nil)
+		return nil, Err("value", "type", "nil")
 	}
 
 	// Check if the type or a pointer to it implements the marshaling interfaces.
@@ -143,7 +143,7 @@ func scanType(t reflect.Type) (codec, error) {
 		}, nil
 	}
 
-	return nil, Err(D.Type, D.Binary, t.String(), D.Not, D.Supported)
+	return nil, Err("type", "binary", t.String(), "not", "supported")
 }
 
 type scannedStruct struct {

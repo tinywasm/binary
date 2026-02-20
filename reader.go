@@ -14,7 +14,7 @@ const (
 	maxVarintLen64 = 10 * 7
 )
 
-var errOverflow = Err(D.Binary, "varint overflow 64-bit integer")
+var errOverflow = Err("binary", "varint overflow 64-bit integer")
 
 // reader represents a required contract for a decoder to work properly
 type reader interface {
