@@ -40,17 +40,17 @@ El codec tipado de `fmt` elimina `reflect` del camino de serialización: el mode
 type FieldWriter interface {
     String(name, val string); Int(name string, val int64); Uint(name string, val uint64)
     Float(name string, val float64); Bool(name string, val bool); Bytes(name string, val []byte)
-    Null(name string); Object(name string, val Encodable); Array(name string, n int) ArrayWriter
+    Null(name string); Object(name string, val Encodable); Array(name string, n int, each func(i int, a ArrayWriter))
 }
+type Encodable interface { EncodeFields(w FieldWriter) }
 type ArrayWriter interface { String(val string); Int(val int64); Float(val float64); Bool(val bool); Bytes(val []byte); Object(val Encodable) }
-type Encodable interface { EncodeFields(w FieldWriter); IsNil() bool }
+
 type FieldReader interface {
     String(name string)(string,bool); Int(name string)(int64,bool); Uint(name string)(uint64,bool)
     Float(name string)(float64,bool); Bool(name string)(bool,bool); Bytes(name string)([]byte,bool)
     Object(name string, into Decodable) bool; Array(name string)(ArrayReader,bool)
 }
-type ArrayReader interface { Len() int; String(i int) string; Int(i int) int64; Float(i int) float64; Bool(i int) bool; Bytes(i int) []byte; Object(i int,into Decodable) bool }
-type Decodable interface { DecodeFields(r FieldReader) error; IsNil() bool }
+type Decodable interface { DecodeFields(r FieldReader) error }
 ```
 
 ### `Message` (sobre el codec)
@@ -66,13 +66,13 @@ type Message struct {
 }
 ```
 
-`Message` implementa `fmt.Encodable`/`fmt.Decodable` directamente (campos primitivos, sin reflect, e `IsNil() bool { return m == nil }`).
+`Message` implementa `fmt.Encodable`/`fmt.Decodable` directamente (campos primitivos, sin reflect).
 El `Payload` es el resultado de `binary.Encode(domainStruct)` donde `domainStruct` implementa
 `fmt.Encodable`. La descomposición: `binary.Decode(payload, &domainStruct)` → `DecodeFields`.
 
-## Diseño
+## Diseño (resuelto)
 
-### `binaryWriter` (`fmt.FieldWriter` & `fmt.ArrayWriter`)
+### `binaryWriter` (`fmt.FieldWriter`)
 
 Escribe al formato binario de transporte (varint + length-prefix) sobre un `io.Writer` sin `reflect`:
 
@@ -83,55 +83,145 @@ Escribe al formato binario de transporte (varint + length-prefix) sobre un `io.W
 - `Float(name, val)` → 8 bytes little-endian (float64) ó 4 bytes (float32 via `Uint` + cast).
 - `Bool(name, val)` → 1 byte (0/1).
 - `Bytes(name, val)` → longitud (uvarint) + bytes.
-- `Null(name)` → 1 byte sentinel (ej. 0 longitud / especial).
-- `Object(name, val)` → si es nil (`fmt.IsNil(val)`) escribe null-sentinel, si no `val.EncodeFields(w)` recursivo.
-- `Array(name, n)` → n (uvarint) + retorna `binaryArrayWriter` (pre-alocado o estructurado) para escribir cada elemento inline.
+- `Null(name)` → 1 byte (0 longitud / sentinel).
+- `Object(name, val)` → `val.EncodeFields(w)` recursivo (no framing extra; la estructura la
+  conoce el `Decodable` receptor).
+- `Array(name, n, each)` → n (uvarint) + cada elemento inline.
 
 Reutilizar `encoder.scratch [10]byte` ya presente para varint sin alloc. **Eliminar el `instance`
 (singleton de caches de `reflect.Type → codec`)**: ya no es necesario.
 
-### `binaryReader` (`fmt.FieldReader` & `fmt.ArrayReader`)
+### `binaryReader` (`fmt.FieldReader`)
 
 Lee secuencialmente del `reader` ya existente (varint/length-prefix). Como los nombres de campo
 se omiten en wire (orden fijo), cada `r.Tipo("name")` **lee el siguiente valor** en el stream
-(ignora el `name` en tiempo de ejecución). El orden de `DecodeFields` generado por `ormc` debe coincidir con el de `EncodeFields`.
+(ignora el `name` en tiempo de ejecución — solo sirve a `DecodeFields` como documentación
+legible). El orden de `DecodeFields` generado por `ormc` debe coincidir con el de `EncodeFields`.
 
-- `Array(name)` → lee `n` (uvarint) + retorna `binaryArrayReader`.
+Nota: el enfoque de orden fijo (sin `name` en wire) es **la propiedad del formato binario** —
+compacto y 0-alloc. El `name` existe en la interfaz para compatibilidad con el contrato
+`fmt.FieldReader` que usan `json`/`jsvalue` (donde sí importa el nombre por parsing de texto).
+
+### `ArrayReader` binario
+
+Lee `n` (uvarint al entrar a `Array`), expone `Len() int` y lee elemento a elemento
+secuencialmente. Sin `map`, sin buffer intermedio.
 
 ## Pasos de ejecución
 
 ### Stage 0 — crear `AGENTS.md`
-1. Crear `binary/AGENTS.md` modelado en `fmt/AGENTS.md`.
+
+1. Crear `/home/cesar/Dev/Project/tinywasm/binary/AGENTS.md` modelado en `fmt/AGENTS.md`:
+   restricciones del ecosistema (no reflect, no map, no stdlib, agnóstico wasm+backend, gotest,
+   gopush). Mencionar que `binary` es reflection-free desde esta versión vía el codec `fmt`.
 
 ### Stage 1 — `binaryWriter` y migrar `Encode`
-2. Crear `codec.go` con `binaryWriter struct` que implemente `fmt.FieldWriter` y `fmt.ArrayWriter`.
+
+2. Crear `codec.go` (o `writer.go`) con `binaryWriter struct` que implemente `fmt.FieldWriter`
+   y `fmt.ArrayWriter`, usando el `encoder` existente como base (reusar `scratch`/`writeUvarint`/
+   `writeFloat64`).
 3. Cambiar la firma de `Encode`:
    ```go
    func Encode(input fmt.Encodable, output any) error
    ```
-   Validar `fmt.IsNil(input)` escribiendo un sentinel de valor nulo. Llamar `input.EncodeFields(w)`.
-   **Eliminar el `instance` singleton** y la lógica de caché por `reflect.Type`.
+   `Encode` crea/reusa el `binaryWriter`, llama `input.EncodeFields(w)`, vuelca a `*[]byte` o
+   `io.Writer`. **Eliminar el `instance` singleton** y la lógica de caché por `reflect.Type`.
+4. `Message.EncodeFields(w fmt.FieldWriter)` → escribir `Topic`, `Type`, `ID`, `Payload`
+   directamente con métodos tipados (sin reflect).
 
 ### Stage 2 — `binaryReader` y migrar `Decode`
-4. Crear `binaryReader struct` que implemente `fmt.FieldReader` y `fmt.ArrayReader`.
-5. Cambiar la firma de `Decode`:
+
+5. Crear `binaryReader struct` que implemente `fmt.FieldReader` sobre el `reader` existente
+   (secuencial, ignora `name`). Implementar `binaryArrayReader` para `Array`.
+6. Cambiar la firma de `Decode`:
    ```go
    func Decode(input any, output fmt.Decodable) error
    ```
-   Validar `fmt.IsNil(output)` retornando error de destino nil.
+   (`input` sigue siendo `[]byte` o `io.Reader` — es el origen de bytes, no el dato).
+7. `Message.DecodeFields(r fmt.FieldReader) error` → leer `Topic`, `Type`, `ID`, `Payload`
+   en el mismo orden que `EncodeFields`.
 
 ### Stage 3 — eliminar `reflect`
-6. **Eliminar** `codecs.go`. Eliminar `binary.go`'s `instance`/`once`/`sync`. Eliminar importaciones de `reflect` y `sync`.
-7. Verificar que `reflect` ya no aparece en ningún `.go` del paquete (excepto tests).
+
+8. **Eliminar** `codecs.go` (los `reflectArraycodec`, `binaryMarshalercodec`, etc. basados en
+   `reflect.Value`). Eliminar `binary.go`'s `instance`/`once`/`sync`. Eliminar importaciones de
+   `reflect` y `sync`.
+9. Verificar que `reflect` ya no aparece en ningún `.go` del paquete (excepto `_test.go` si
+   algún test lo necesitara — preferible evitarlo).
 
 ### Stage 4 — tests
-8. Adaptar/reescribir los tests: los tipos de test implementan `fmt.Encodable`/`fmt.Decodable` e `IsNil() bool { return m == nil }`. Cubrir round-trip: primitivos, `[]byte`, `string`, struct anidado, slices, typed nil pointer, `Message` completo.
-9. **0-alloc**: `testing.AllocsPerRun` sobre `Encode` → **0 asignaciones**.
-10. `gotest` verde.
+
+10. Adaptar/reescribir los tests: los tipos de test implementan `fmt.Encodable`/`fmt.Decodable`
+    a mano. Cubrir round-trip: primitivos, `[]byte`, `string`, struct anidado (`Object`), slices
+    (`Array`), `Message` completo.
+11. **0-alloc**: `testing.AllocsPerRun` sobre `Encode` → **0 asignaciones** (buffer reusado,
+    sin reflect, sin slice intermedio).
+12. `gotest` verde.
 
 ### Stage 5 — actualizar el benchmark existente — OBLIGATORIO
-11. Correr benchmarks de `docs/BENCHMARK.md` antes y después de la migración.
-12. Registrar delta de `allocs/op` (esperado: 0 allocs en `Encode`) y tamaño WASM (reducción por quitar `reflect`).
+
+**YA EXISTE** `docs/BENCHMARK.md`. **NO crear** un doc nuevo; **actualizar** lo que hay:
+
+13. **Baseline ANTES** (si el repo tiene `_bench_test.go` o equivalente): correr con la
+    implementación actual basada en `reflect`; anotar `ns/op`/`B/op`/`allocs/op` y tamaño wasm.
+14. **Medir DESPUÉS** (codec): re-correr. Esperado: **0 `allocs/op`** en `Encode`; sin bloque
+    `reflect` (~72 KB) en binario wasm.
+15. **Actualizar `docs/BENCHMARK.md`**: tabla con Antes (reflect) | Después (codec) | delta.
+    Tamaño wasm antes/después. "Last updated" actualizado.
 
 ### Stage 6 — documentación — OBLIGATORIO
-13. Actualizar `README.md` y `docs/message-envelope.md` documentando las nuevas firmas e `IsNil()`. Enlazar a `docs/BENCHMARK.md`.
+
+16. **`README.md`**: actualizar firmas de `Encode`/`Decode` (`fmt.Encodable`/`fmt.Decodable`);
+    mencionar que `binary` es reflection-free. Agregar ejemplo mínimo con un struct que implementa
+    `fmt.Encodable`/`fmt.Decodable`. Enlazar `docs/BENCHMARK.md`.
+17. **`docs/message-envelope.md`**: verificar que el protocolo `Message` está documentado
+    correctamente con la nueva firma del codec (sin `reflect`).
+
+## Verificación (repo-local, ejecutable por el agente)
+
+```bash
+# 1. reflect eliminado del paquete (no de _test.go):
+grep -rn '"reflect"' *.go | grep -v _test && echo "FALLA: reflect queda" || echo "OK"
+
+# 2. sync eliminado (singleton instance ya no existe):
+grep -rn '"sync"' *.go | grep -v _test && echo "FALLA: sync queda" || echo "OK"
+
+# 3. sin map en el camino de serialización:
+grep -nE 'map\[' *.go | grep -v _test && echo "FALLA" || echo "OK"
+
+# 4. tests + 0-alloc:
+gotest
+```
+
+## Checklist de calidad (obligatorio)
+
+- **0-alloc** en `Encode` (medido con `AllocsPerRun`); nunca `reflect.Value`/`reflect.Type`.
+- **Sin `reflect`, sin `sync`, sin `map`, sin `any`** en el camino de serialización.
+  (`output any` en `Encode` es el destino `*[]byte`/`io.Writer`, no el dato).
+- **Sin `instance`/singleton**: eliminado con la migración (el codec no necesita caché de tipos).
+- **Orden de campos = contrato implícito del formato binario**: `EncodeFields` y `DecodeFields`
+  deben escribir/leer en el mismo orden. `ormc` garantiza esto en los modelos generados.
+- **`Message` implementa el codec**: `EncodeFields`/`DecodeFields` con campos tipados, sin reflect.
+- Crear `AGENTS.md` si no existe.
+- Reglas genéricas del ecosistema: ver `AGENTS.md`.
+
+## Tabla de stages
+
+| Stage | Objetivo | Entregable | Criterio de salida |
+|---|---|---|---|
+| 0 | AGENTS.md | `AGENTS.md` creado | restricciones ecosistema documentadas |
+| 1 | Encode al codec | `binaryWriter` + `Encode(fmt.Encodable,...)` | elimina `instance`/singleton |
+| 2 | Decode al codec | `binaryReader` + `Decode(..., fmt.Decodable)` | lectura secuencial, sin `name` en wire |
+| 3 | Eliminar reflect | borrar `codecs.go` + imports `reflect`/`sync` | `grep reflect *.go` → vacío |
+| 4 | Tests + 0-alloc | tipos test `Encodable`/`Decodable`; `AllocsPerRun==0` | `gotest` verde |
+| 5 | Benchmark antes/después | actualizar `docs/BENCHMARK.md` | 0 allocs; tamaño wasm antes/después |
+| 6 | Documentación | `README.md` + `docs/message-envelope.md` | firmas actualizadas; sin mención a reflect |
+
+## Nota (coordinación)
+
+GATEs: `fmt` (contrato) y `ormc` (genera `EncodeFields`/`DecodeFields` en los modelos reales).
+`binary` puede testear con tipos propios a mano, pero los consumidores pasan modelos generados
+por `ormc` → mergear DESPUÉS de `ormc`. **Nota de diseño del wire format**: los nombres de campo
+se omiten en binario (formato compacto); el orden es fijo por `ormc`. Esto es compatible con el
+contrato `fmt.FieldReader` (el `name` existe en la interfaz pero `binaryReader` lo ignora).
+Ver `~/Dev/Project/tinywasm/docs/SIZE_OPTIMIZATION_MASTER_PLAN.md`.
