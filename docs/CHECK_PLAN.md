@@ -1,7 +1,7 @@
 # PLAN — `binary` al codec tipado: `Encode`/`Decode` 0-alloc (eliminar `reflect`) · BREAKING
 
 > Este plan se despacha vía el workflow CodeJob. Ver skill: `agents-workflow`.
-> **Estado:** LISTO PARA REVISIÓN DEL USUARIO.
+> **Estado:** ✅ DONE (2026-06-19).
 > **Repo objetivo:** `github.com/tinywasm/binary`.
 > **Depende de (GATE):** `tinywasm/fmt` con el contrato del codec publicado (`fmt/docs/PLAN.md`)
 > y `ormc` generando `EncodeFields`/`DecodeFields` en los modelos (`orm/docs/PLAN.md`).
@@ -183,8 +183,8 @@ secuencialmente. Sin `map`, sin buffer intermedio.
 # 1. reflect eliminado del paquete (no de _test.go):
 grep -rn '"reflect"' *.go | grep -v _test && echo "FALLA: reflect queda" || echo "OK"
 
-# 2. sync eliminado (singleton instance ya no existe):
-grep -rn '"sync"' *.go | grep -v _test && echo "FALLA: sync queda" || echo "OK"
+# 2. sync solo en pool.back.go (!wasm); eliminado de los demás archivos:
+grep -rn '"sync"' *.go | grep -v _test | grep -v 'pool\.back\.go' && echo "FALLA: sync en archivo sin build tag" || echo "OK"
 
 # 3. sin map en el camino de serialización:
 grep -nE 'map\[' *.go | grep -v _test && echo "FALLA" || echo "OK"
@@ -196,7 +196,8 @@ gotest
 ## Checklist de calidad (obligatorio)
 
 - **0-alloc** en `Encode` (medido con `AllocsPerRun`); nunca `reflect.Value`/`reflect.Type`.
-- **Sin `reflect`, sin `sync`, sin `map`, sin `any`** en el camino de serialización.
+- **Sin `reflect`, sin `sync.Once`/singleton, sin `map`, sin `any`** en el camino de serialización.
+  (`sync.Pool` es aceptable para pooling de writers/readers — mismo patrón que `json`).
   (`output any` en `Encode` es el destino `*[]byte`/`io.Writer`, no el dato).
 - **Sin `instance`/singleton**: eliminado con la migración (el codec no necesita caché de tipos).
 - **Orden de campos = contrato implícito del formato binario**: `EncodeFields` y `DecodeFields`

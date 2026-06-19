@@ -3,22 +3,8 @@ package binary
 import (
 	"bytes"
 	"io"
-	"sync"
 
 	"github.com/tinywasm/fmt"
-)
-
-var (
-	writerPool = sync.Pool{
-		New: func() any {
-			return newWriter(nil)
-		},
-	}
-	readerPool = sync.Pool{
-		New: func() any {
-			return newBinaryReader(nil)
-		},
-	}
 )
 
 // Encode encodes input to output.
@@ -29,8 +15,8 @@ func Encode(input fmt.Encodable, output any) error {
 		return fmt.Err("Encode: input is nil")
 	}
 
-	w := writerPool.Get().(*binaryWriter)
-	defer writerPool.Put(w)
+	w := getWriter()
+	defer putWriter(w)
 
 	var err error
 	switch out := output.(type) {
@@ -69,8 +55,8 @@ func Decode(input, output any) error {
 		return fmt.Err("Decode: output is nil")
 	}
 
-	r := readerPool.Get().(*binaryReader)
-	defer readerPool.Put(r)
+	r := getReader()
+	defer putReader(r)
 
 	var err error
 	switch in := input.(type) {
