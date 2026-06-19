@@ -17,22 +17,6 @@ func TestBinaryDecodeStruct(t *testing.T) {
 	}
 }
 
-func TestBinaryDecodeToValueErrors(t *testing.T) {
-	b := []byte{1, 0, 0, 0}
-	var v uint32
-	err := Decode(b, v)
-	if err == nil {
-		t.Error("Expected error")
-	}
-	err = Decode(b, &v)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-	if !reflect.DeepEqual(uint32(1), v) {
-		t.Errorf("Expected %v, got %v", uint32(1), v)
-	}
-}
-
 type oneByteReader struct {
 	content []byte
 }
@@ -55,18 +39,19 @@ func (r *oneByteReader) Read(buf []byte) (n int, err error) {
 }
 
 func TestDecodeFromReader(t *testing.T) {
-	data := "data string"
+	data := testEncodableString("data string")
 	var encoded []byte
 	err := Encode(data, &encoded)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	decoder := newDecoder(&oneByteReader{content: encoded})
-	str, err := decoder.readString()
+
+	decoded := &testDecodableString{}
+	err = Decode(&oneByteReader{content: encoded}, decoded)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	if !reflect.DeepEqual(data, str) {
-		t.Errorf("Expected %v, got %v", data, str)
+	if !reflect.DeepEqual(string(data), decoded.val) {
+		t.Errorf("Expected %v, got %v", string(data), decoded.val)
 	}
 }
