@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	"io"
 
-	. "github.com/tinywasm/fmt"
+	"github.com/tinywasm/fmt"
 )
 
 // MaxVarintLenN is the maximum length of a varint-encoded N-bit integer.
@@ -14,7 +14,7 @@ const (
 	maxVarintLen64 = 10 * 7
 )
 
-var errOverflow = Err("binary", "varint overflow 64-bit integer")
+var errOverflow = fmt.Err("binary", "varint overflow 64-bit integer")
 
 // reader represents a required contract for a decoder to work properly
 type reader interface {
