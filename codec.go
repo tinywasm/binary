@@ -30,6 +30,10 @@ func (w *binaryWriter) String(name, val string) {
 	w.write([]byte(val))
 }
 
+func (w *binaryWriter) Raw(name, val string) {
+	w.String(name, val)
+}
+
 func (w *binaryWriter) Int(name string, val int64) {
 	w.writeVarint(val)
 }
@@ -114,6 +118,10 @@ func (w *binaryArrayWriter) Object(val fmt.Encodable) {
 	w.w.Object("", val)
 }
 
+func (w *binaryArrayWriter) Close() {
+	// binary protocol does not need a closing delimiter
+}
+
 // Internal helpers
 
 func (w *binaryWriter) write(p []byte) {
@@ -171,6 +179,10 @@ func (br *binaryReader) String(name string) (string, bool) {
 		return "", false
 	}
 	return string(b), true
+}
+
+func (br *binaryReader) Raw(name string) (string, bool) {
+	return br.String(name)
 }
 
 func (br *binaryReader) Int(name string) (int64, bool) {
