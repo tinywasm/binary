@@ -6,7 +6,7 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/tinywasm/fmt"
+"github.com/tinywasm/model"
 )
 
 var testMsg = msg{
@@ -112,17 +112,13 @@ func TestEncodeAllocations(t *testing.T) {
 type testCustom string
 
 func (t testCustom) IsNil() bool { return false }
-func (t testCustom) EncodeFields(w fmt.FieldWriter) {
+func (t testCustom) EncodeFields(w model.FieldWriter) {
 	w.String("val", string(t))
 }
-func (t *testCustom) DecodeFields(r fmt.FieldReader) error {
-	var ok bool
-	val, ok := r.String("val")
-	if ok {
+func (t *testCustom) DecodeFields(r model.FieldReader) {
+	if val, ok := r.String("val"); ok {
 		*t = testCustom(val)
 	}
-	_ = ok
-	return nil
 }
 
 func TestMarshalWithCustomcodec(t *testing.T) {

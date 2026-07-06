@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tinywasm/fmt"
+"github.com/tinywasm/model"
 )
 
 // FixtureBasic covers all primitive types, standard slices, and basic logic.
@@ -20,7 +20,7 @@ type FixtureBasic struct {
 	Score     float64  // Floating point
 }
 
-func (f *FixtureBasic) EncodeFields(w fmt.FieldWriter) {
+func (f *FixtureBasic) EncodeFields(w model.FieldWriter) {
 	w.String("Name", f.Name)
 	w.Int("Timestamp", f.Timestamp)
 	w.Bytes("Payload", f.Payload)
@@ -33,16 +33,15 @@ func (f *FixtureBasic) EncodeFields(w fmt.FieldWriter) {
 	w.Float("Score", f.Score)
 }
 
-func (f *FixtureBasic) DecodeFields(r fmt.FieldReader) error {
-	var ok bool
-	if f.Name, ok = r.String("Name"); !ok {
-		return Errorf("missing Name")
+func (f *FixtureBasic) DecodeFields(r model.FieldReader) {
+	if v, ok := r.String("Name"); ok {
+		f.Name = v
 	}
-	if f.Timestamp, ok = r.Int("Timestamp"); !ok {
-		return Errorf("missing Timestamp")
+	if v, ok := r.Int("Timestamp"); ok {
+		f.Timestamp = v
 	}
-	if f.Payload, ok = r.Bytes("Payload"); !ok {
-		return Errorf("missing Payload")
+	if v, ok := r.Bytes("Payload"); ok {
+		f.Payload = v
 	}
 	if ar, ok := r.Array("Tags"); ok {
 		if ar.Len() > 0 {
@@ -54,18 +53,15 @@ func (f *FixtureBasic) DecodeFields(r fmt.FieldReader) error {
 			f.Tags = nil
 		}
 	}
-	v, ok := r.Int("Count")
-	if !ok {
-		return Errorf("missing Count")
+	if v, ok := r.Int("Count"); ok {
+		f.Count = int16(v)
 	}
-	f.Count = int16(v)
-	if f.Active, ok = r.Bool("Active"); !ok {
-		return Errorf("missing Active")
+	if v, ok := r.Bool("Active"); ok {
+		f.Active = v
 	}
-	if f.Score, ok = r.Float("Score"); !ok {
-		return Errorf("missing Score")
+	if v, ok := r.Float("Score"); ok {
+		f.Score = v
 	}
-	return nil
 }
 
 func (f *FixtureBasic) IsNil() bool {
@@ -81,7 +77,7 @@ type FixtureComplex struct {
 	Matrix    [3]int         // Fixed array
 }
 
-func (f *FixtureComplex) EncodeFields(w fmt.FieldWriter) {
+func (f *FixtureComplex) EncodeFields(w model.FieldWriter) {
 	w.Uint("ID", f.ID)
 	w.Object("Primary", &f.Primary)
 	w.Object("Secondary", f.Secondary)
@@ -95,14 +91,11 @@ func (f *FixtureComplex) EncodeFields(w fmt.FieldWriter) {
 	}
 }
 
-func (f *FixtureComplex) DecodeFields(r fmt.FieldReader) (err error) {
-	var ok bool
-	if f.ID, ok = r.Uint("ID"); !ok {
-		return Errorf("missing ID")
+func (f *FixtureComplex) DecodeFields(r model.FieldReader) {
+	if v, ok := r.Uint("ID"); ok {
+		f.ID = v
 	}
-	if !r.Object("Primary", &f.Primary) {
-		return Errorf("missing Primary")
-	}
+	r.Object("Primary", &f.Primary)
 	f.Secondary = &FixtureBasic{}
 	if !r.Object("Secondary", f.Secondary) {
 		f.Secondary = nil
@@ -111,9 +104,7 @@ func (f *FixtureComplex) DecodeFields(r fmt.FieldReader) (err error) {
 		if ar.Len() > 0 {
 			f.List = make([]FixtureBasic, ar.Len())
 			for i := 0; i < ar.Len(); i++ {
-				if !ar.Object(i, &f.List[i]) {
-					return Errorf("missing List item %d", i)
-				}
+				ar.Object(i, &f.List[i])
 			}
 		} else {
 			f.List = nil
@@ -124,7 +115,6 @@ func (f *FixtureComplex) DecodeFields(r fmt.FieldReader) (err error) {
 			f.Matrix[i] = int(ar.Int(i))
 		}
 	}
-	return nil
 }
 
 func (f *FixtureComplex) IsNil() bool {

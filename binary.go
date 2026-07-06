@@ -5,12 +5,13 @@ import (
 	"io"
 
 	"github.com/tinywasm/fmt"
+	"github.com/tinywasm/model"
 )
 
 // Encode encodes input to output.
 // input: Encodable struct
 // output: *[]byte or io.Writer
-func Encode(input fmt.Encodable, output any) error {
+func Encode(input model.Encodable, output any) error {
 	if input == nil || input.IsNil() {
 		return fmt.Err("Encode: input is nil")
 	}
@@ -47,9 +48,9 @@ func Decode(input, output any) error {
 		return fmt.Err("Decode: output is nil")
 	}
 
-	dec, ok := output.(fmt.Decodable)
+	dec, ok := output.(model.Decodable)
 	if !ok {
-		return fmt.Err("Decode", "output", "must implement fmt.Decodable")
+		return fmt.Err("Decode", "output", "must implement model.Decodable")
 	}
 	if dec.IsNil() {
 		return fmt.Err("Decode: output is nil")
@@ -62,10 +63,10 @@ func Decode(input, output any) error {
 	switch in := input.(type) {
 	case []byte:
 		r.reset(bytes.NewReader(in))
-		err = dec.DecodeFields(r)
+		dec.DecodeFields(r)
 	case io.Reader:
 		r.reset(in)
-		err = dec.DecodeFields(r)
+		dec.DecodeFields(r)
 	default:
 		err = fmt.Err("Decode", "input", "must be []byte or io.Reader")
 	}

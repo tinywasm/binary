@@ -1,5 +1,7 @@
 package binary
 
+import "github.com/tinywasm/model"
+
 import "github.com/tinywasm/fmt"
 
 // Message is the standard inter-module communication envelope.
@@ -11,37 +13,31 @@ type Message struct {
 	Payload []byte          // binary-encoded body (domain-specific struct)
 }
 
-// EncodeFields implements fmt.Encodable
-func (m *Message) EncodeFields(w fmt.FieldWriter) {
+// EncodeFields implements model.Encodable
+func (m *Message) EncodeFields(w model.FieldWriter) {
 	w.String("Topic", m.Topic)
 	w.Int("Type", int64(m.Type))
 	w.Uint("ID", uint64(m.ID))
 	w.Bytes("Payload", m.Payload)
 }
 
-// DecodeFields implements fmt.Decodable
-func (m *Message) DecodeFields(r fmt.FieldReader) error {
-	var ok bool
-	if m.Topic, ok = r.String("Topic"); !ok {
-		return Errorf("missing Topic")
+// DecodeFields implements model.Decodable
+func (m *Message) DecodeFields(r model.FieldReader) {
+	if v, ok := r.String("Topic"); ok {
+		m.Topic = v
 	}
-	t, ok := r.Int("Type")
-	if !ok {
-		return Errorf("missing Type")
+	if t, ok := r.Int("Type"); ok {
+		m.Type = fmt.MessageType(t)
 	}
-	m.Type = fmt.MessageType(t)
-	id, ok := r.Uint("ID")
-	if !ok {
-		return Errorf("missing ID")
+	if id, ok := r.Uint("ID"); ok {
+		m.ID = uint32(id)
 	}
-	m.ID = uint32(id)
-	if m.Payload, ok = r.Bytes("Payload"); !ok {
-		return Errorf("missing Payload")
+	if v, ok := r.Bytes("Payload"); ok {
+		m.Payload = v
 	}
-	return nil
 }
 
-// IsNil implements fmt.Encodable and fmt.Decodable
+// IsNil implements model.Encodable and model.Decodable
 func (m *Message) IsNil() bool {
 	return m == nil
 }

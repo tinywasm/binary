@@ -1,10 +1,9 @@
 package binary
 
 import (
+	"github.com/tinywasm/model"
 	"io"
 	"math"
-
-	"github.com/tinywasm/fmt"
 )
 
 type binaryWriter struct {
@@ -73,7 +72,7 @@ func (w *binaryWriter) Null(name string) {
 	w.write(w.scratch[:1])
 }
 
-func (w *binaryWriter) Object(name string, val fmt.Encodable) {
+func (w *binaryWriter) Object(name string, val model.Encodable) {
 	if val != nil && !val.IsNil() {
 		w.scratch[0] = 1
 		w.write(w.scratch[:1])
@@ -83,7 +82,7 @@ func (w *binaryWriter) Object(name string, val fmt.Encodable) {
 	}
 }
 
-func (w *binaryWriter) Array(name string, n int) fmt.ArrayWriter {
+func (w *binaryWriter) Array(name string, n int) model.ArrayWriter {
 	w.writeUvarint(uint64(n))
 	return &binaryArrayWriter{w: w}
 }
@@ -114,7 +113,7 @@ func (w *binaryArrayWriter) Bytes(val []byte) {
 	w.w.Bytes("", val)
 }
 
-func (w *binaryArrayWriter) Object(val fmt.Encodable) {
+func (w *binaryArrayWriter) Object(val model.Encodable) {
 	w.w.Object("", val)
 }
 
@@ -234,7 +233,7 @@ func (br *binaryReader) Bytes(name string) ([]byte, bool) {
 	return b, true
 }
 
-func (br *binaryReader) Object(name string, into fmt.Decodable) bool {
+func (br *binaryReader) Object(name string, into model.Decodable) bool {
 	if into == nil {
 		return false
 	}
@@ -242,11 +241,11 @@ func (br *binaryReader) Object(name string, into fmt.Decodable) bool {
 	if err != nil || presence == 0 {
 		return false
 	}
-	err = into.DecodeFields(br)
-	return err == nil
+	into.DecodeFields(br)
+	return true
 }
 
-func (br *binaryReader) Array(name string) (fmt.ArrayReader, bool) {
+func (br *binaryReader) Array(name string) (model.ArrayReader, bool) {
 	l, err := br.r.ReadUvarint()
 	if err != nil {
 		return nil, false
@@ -290,6 +289,6 @@ func (ar *binaryArrayReader) Bytes(i int) []byte {
 	return val
 }
 
-func (ar *binaryArrayReader) Object(i int, into fmt.Decodable) bool {
+func (ar *binaryArrayReader) Object(i int, into model.Decodable) bool {
 	return ar.br.Object("", into)
 }

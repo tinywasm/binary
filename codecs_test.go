@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/tinywasm/fmt"
+	"github.com/tinywasm/model"
 )
 
 // Message represents a message to be flushed
@@ -18,7 +18,7 @@ type msg struct {
 
 func (m *msg) IsNil() bool { return m == nil }
 
-func (m *msg) EncodeFields(w fmt.FieldWriter) {
+func (m *msg) EncodeFields(w model.FieldWriter) {
 	w.String("Name", m.Name)
 	w.Int("Timestamp", m.Timestamp)
 	w.Bytes("Payload", m.Payload)
@@ -28,7 +28,7 @@ func (m *msg) EncodeFields(w fmt.FieldWriter) {
 	}
 }
 
-func (m *msg) DecodeFields(r fmt.FieldReader) error {
+func (m *msg) DecodeFields(r model.FieldReader) {
 	var ok bool
 	m.Name, ok = r.String("Name")
 	t, ok := r.Int("Timestamp")
@@ -41,7 +41,6 @@ func (m *msg) DecodeFields(r fmt.FieldReader) error {
 		}
 	}
 	_ = ok
-	return nil
 }
 
 type s0 struct {
@@ -52,20 +51,19 @@ type s0 struct {
 
 func (s *s0) IsNil() bool { return s == nil }
 
-func (s *s0) EncodeFields(w fmt.FieldWriter) {
+func (s *s0) EncodeFields(w model.FieldWriter) {
 	w.String("A", s.A)
 	w.String("B", s.B)
 	w.Int("C", int64(s.C))
 }
 
-func (s *s0) DecodeFields(r fmt.FieldReader) error {
+func (s *s0) DecodeFields(r model.FieldReader) {
 	var ok bool
 	s.A, ok = r.String("A")
 	s.B, ok = r.String("B")
 	v, ok := r.Int("C")
 	s.C = int16(v)
 	_ = ok
-	return nil
 }
 
 var (
@@ -82,7 +80,7 @@ type simpleStruct struct {
 
 func (s *simpleStruct) IsNil() bool { return s == nil }
 
-func (s *simpleStruct) EncodeFields(w fmt.FieldWriter) {
+func (s *simpleStruct) EncodeFields(w model.FieldWriter) {
 	w.String("Name", s.Name)
 	w.Int("Timestamp", s.Timestamp)
 	w.Bytes("Payload", s.Payload)
@@ -92,16 +90,15 @@ func (s *simpleStruct) EncodeFields(w fmt.FieldWriter) {
 	}
 }
 
-func (s *simpleStruct) DecodeFields(r fmt.FieldReader) error {
-	var ok bool
-	if s.Name, ok = r.String("Name"); !ok {
-		return Errorf("missing Name")
+func (s *simpleStruct) DecodeFields(r model.FieldReader) {
+	if v, ok := r.String("Name"); ok {
+		s.Name = v
 	}
-	if s.Timestamp, ok = r.Int("Timestamp"); !ok {
-		return Errorf("missing Timestamp")
+	if v, ok := r.Int("Timestamp"); ok {
+		s.Timestamp = v
 	}
-	if s.Payload, ok = r.Bytes("Payload"); !ok {
-		return Errorf("missing Payload")
+	if v, ok := r.Bytes("Payload"); ok {
+		s.Payload = v
 	}
 	if ar, ok := r.Array("Ssid"); ok {
 		s.Ssid = make([]uint32, ar.Len())
@@ -109,7 +106,6 @@ func (s *simpleStruct) DecodeFields(r fmt.FieldReader) error {
 			s.Ssid[i] = uint32(ar.Int(i))
 		}
 	}
-	return nil
 }
 
 type sliceStruct struct {
@@ -118,15 +114,14 @@ type sliceStruct struct {
 
 func (s *sliceStruct) IsNil() bool { return s == nil }
 
-func (s *sliceStruct) EncodeFields(w fmt.FieldWriter) {
+func (s *sliceStruct) EncodeFields(w model.FieldWriter) {
 	w.Bytes("Payload", s.Payload)
 }
 
-func (s *sliceStruct) DecodeFields(r fmt.FieldReader) error {
-	var ok bool
-	s.Payload, ok = r.Bytes("Payload")
-	_ = ok
-	return nil
+func (s *sliceStruct) DecodeFields(r model.FieldReader) {
+	if v, ok := r.Bytes("Payload"); ok {
+		s.Payload = v
+	}
 }
 
 func TestBinaryEncode_EOF(t *testing.T) {
@@ -170,11 +165,11 @@ type s2 struct {
 
 func (s *s2) IsNil() bool { return s == nil }
 
-func (s *s2) EncodeFields(w fmt.FieldWriter) {
+func (s *s2) EncodeFields(w model.FieldWriter) {
 	w.Bytes("b", s.b)
 }
 
-func (s *s2) DecodeFields(r fmt.FieldReader) error {
+func (s *s2) DecodeFields(r model.FieldReader) error {
 	var ok bool
 	s.b, ok = r.Bytes("b")
 	if !ok {
@@ -192,17 +187,16 @@ func TestBinaryMarshalUnMarshaler(t *testing.T) {
 
 type encodableUint64 uint64
 func (u encodableUint64) IsNil() bool { return false }
-func (u encodableUint64) EncodeFields(w fmt.FieldWriter) {
+func (u encodableUint64) EncodeFields(w model.FieldWriter) {
 	w.Uint("val", uint64(u))
 }
 
 type decodableUint64 struct { val uint64 }
 func (u *decodableUint64) IsNil() bool { return u == nil }
-func (u *decodableUint64) DecodeFields(r fmt.FieldReader) error {
-	var ok bool
-	u.val, ok = r.Uint("val")
-	_ = ok
-	return nil
+func (u *decodableUint64) DecodeFields(r model.FieldReader) {
+	if v, ok := r.Uint("val"); ok {
+		u.val = v
+	}
 }
 
 func TestMarshalUnMarshalTypeAliases(t *testing.T) {
@@ -220,7 +214,7 @@ type T1 struct {
 
 func (t *T1) IsNil() bool { return t == nil }
 
-func (t *T1) EncodeFields(w fmt.FieldWriter) {
+func (t *T1) EncodeFields(w model.FieldWriter) {
 	w.Uint("ID", t.ID)
 	w.String("Name", t.Name)
 	aw := w.Array("Slice", len(t.Slice))
@@ -229,18 +223,19 @@ func (t *T1) EncodeFields(w fmt.FieldWriter) {
 	}
 }
 
-func (t *T1) DecodeFields(r fmt.FieldReader) error {
-	var ok bool
-	t.ID, ok = r.Uint("ID")
-	t.Name, ok = r.String("Name")
+func (t *T1) DecodeFields(r model.FieldReader) {
+	if v, ok := r.Uint("ID"); ok {
+		t.ID = v
+	}
+	if v, ok := r.String("Name"); ok {
+		t.Name = v
+	}
 	if ar, ok := r.Array("Slice"); ok {
 		t.Slice = make([]int, ar.Len())
 		for i := 0; i < ar.Len(); i++ {
 			t.Slice[i] = int(ar.Int(i))
 		}
 	}
-	_ = ok
-	return nil
 }
 
 type StructWithT1 struct {
@@ -251,19 +246,18 @@ type StructWithT1 struct {
 
 func (s *StructWithT1) IsNil() bool { return s == nil }
 
-func (s *StructWithT1) EncodeFields(w fmt.FieldWriter) {
+func (s *StructWithT1) EncodeFields(w model.FieldWriter) {
 	w.Object("V1", &s.V1)
 	w.Uint("V2", s.V2)
 	w.Object("V3", &s.V3)
 }
 
-func (s *StructWithT1) DecodeFields(r fmt.FieldReader) error {
+func (s *StructWithT1) DecodeFields(r model.FieldReader) {
 	r.Object("V1", &s.V1)
-	var ok bool
-	s.V2, ok = r.Uint("V2")
+	if v, ok := r.Uint("V2"); ok {
+		s.V2 = v
+	}
 	r.Object("V3", &s.V3)
-	_ = ok
-	return nil
 }
 
 func TestStructWithStruct(t *testing.T) {
@@ -288,7 +282,7 @@ func TestStructWithStruct(t *testing.T) {
 type testEncodableString string
 
 func (s testEncodableString) IsNil() bool { return false }
-func (s testEncodableString) EncodeFields(w fmt.FieldWriter) {
+func (s testEncodableString) EncodeFields(w model.FieldWriter) {
 	w.String("val", string(s))
 }
 
@@ -297,13 +291,10 @@ type testDecodableString struct {
 }
 
 func (s *testDecodableString) IsNil() bool { return s == nil }
-func (s *testDecodableString) DecodeFields(r fmt.FieldReader) error {
-	var ok bool
-	s.val, ok = r.String("val")
-	if !ok {
-		return Errorf("missing val")
+func (s *testDecodableString) DecodeFields(r model.FieldReader) {
+	if v, ok := r.String("val"); ok {
+		s.val = v
 	}
-	return nil
 }
 
 // Helper functions for testing

@@ -5,7 +5,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/tinywasm/fmt"
+	"github.com/tinywasm/model"
 )
 
 func TestCoverageGaps(t *testing.T) {
@@ -115,18 +115,17 @@ type testEncodableBoolSlice struct {
 }
 
 func (t *testEncodableBoolSlice) IsNil() bool { return t == nil }
-func (t *testEncodableBoolSlice) EncodeFields(w fmt.FieldWriter) {
+func (t *testEncodableBoolSlice) EncodeFields(w model.FieldWriter) {
 	aw := w.Array("B", len(t.B))
 	for i := 0; i < len(t.B); i++ {
 		aw.Bool(t.B[i])
 	}
 }
-func (t *testEncodableBoolSlice) DecodeFields(r fmt.FieldReader) error {
+func (t *testEncodableBoolSlice) DecodeFields(r model.FieldReader) {
 	if ar, ok := r.Array("B"); ok {
 		t.B = make([]bool, ar.Len())
 		for i := 0; i < ar.Len(); i++ {
 			t.B[i] = ar.Bool(i)
 		}
 	}
-	return nil
 }
