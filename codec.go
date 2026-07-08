@@ -37,8 +37,6 @@ func (w *binaryWriter) Int(name string, val int64) {
 	w.writeVarint(val)
 }
 
-// Deprecated: required only while model.FieldWriter/FieldReader still declare Uint.
-// Delete when this module updates to the model version that removes it.
 func (w *binaryWriter) Uint(name string, val uint64) {
 	w.writeUvarint(val)
 }
@@ -194,8 +192,6 @@ func (br *binaryReader) Int(name string) (int64, bool) {
 	return v, true
 }
 
-// Deprecated: required only while model.FieldWriter/FieldReader still declare Uint.
-// Delete when this module updates to the model version that removes it.
 func (br *binaryReader) Uint(name string) (uint64, bool) {
 	v, err := br.r.ReadUvarint()
 	if err != nil {
