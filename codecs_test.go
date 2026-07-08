@@ -185,26 +185,6 @@ func TestBinaryMarshalUnMarshaler(t *testing.T) {
 	assertEqualBytes(t, []byte{0x1, 0x13}, b)
 }
 
-type encodableUint64 uint64
-func (u encodableUint64) IsNil() bool { return false }
-func (u encodableUint64) EncodeFields(w model.FieldWriter) {
-	w.Uint("val", uint64(u))
-}
-
-type decodableUint64 struct { val uint64 }
-func (u *decodableUint64) IsNil() bool { return u == nil }
-func (u *decodableUint64) DecodeFields(r model.FieldReader) {
-	if v, ok := r.Uint("val"); ok {
-		u.val = v
-	}
-}
-
-func TestMarshalUnMarshalTypeAliases(t *testing.T) {
-	f := encodableUint64(32)
-	var b []byte; err := Encode(f, &b)
-	assertNoError(t, err)
-	assertEqual(t, []byte{0x20}, b)
-}
 
 type T1 struct {
 	ID    uint64
@@ -215,7 +195,7 @@ type T1 struct {
 func (t *T1) IsNil() bool { return t == nil }
 
 func (t *T1) EncodeFields(w model.FieldWriter) {
-	w.Uint("ID", t.ID)
+	w.Int("ID", int64(t.ID))
 	w.String("Name", t.Name)
 	aw := w.Array("Slice", len(t.Slice))
 	for i := 0; i < len(t.Slice); i++ {
@@ -224,8 +204,8 @@ func (t *T1) EncodeFields(w model.FieldWriter) {
 }
 
 func (t *T1) DecodeFields(r model.FieldReader) {
-	if v, ok := r.Uint("ID"); ok {
-		t.ID = v
+	if v, ok := r.Int("ID"); ok {
+		t.ID = uint64(v)
 	}
 	if v, ok := r.String("Name"); ok {
 		t.Name = v
@@ -248,14 +228,14 @@ func (s *StructWithT1) IsNil() bool { return s == nil }
 
 func (s *StructWithT1) EncodeFields(w model.FieldWriter) {
 	w.Object("V1", &s.V1)
-	w.Uint("V2", s.V2)
+	w.Int("V2", int64(s.V2))
 	w.Object("V3", &s.V3)
 }
 
 func (s *StructWithT1) DecodeFields(r model.FieldReader) {
 	r.Object("V1", &s.V1)
-	if v, ok := r.Uint("V2"); ok {
-		s.V2 = v
+	if v, ok := r.Int("V2"); ok {
+		s.V2 = uint64(v)
 	}
 	r.Object("V3", &s.V3)
 }

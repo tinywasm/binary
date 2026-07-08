@@ -78,7 +78,7 @@ type FixtureComplex struct {
 }
 
 func (f *FixtureComplex) EncodeFields(w model.FieldWriter) {
-	w.Uint("ID", f.ID)
+	w.Int("ID", int64(f.ID))
 	w.Object("Primary", &f.Primary)
 	w.Object("Secondary", f.Secondary)
 	aw := w.Array("List", len(f.List))
@@ -92,8 +92,8 @@ func (f *FixtureComplex) EncodeFields(w model.FieldWriter) {
 }
 
 func (f *FixtureComplex) DecodeFields(r model.FieldReader) {
-	if v, ok := r.Uint("ID"); ok {
-		f.ID = v
+	if v, ok := r.Int("ID"); ok {
+		f.ID = uint64(v)
 	}
 	r.Object("Primary", &f.Primary)
 	f.Secondary = &FixtureBasic{}
