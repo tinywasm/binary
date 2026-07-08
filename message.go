@@ -17,7 +17,7 @@ type Message struct {
 func (m *Message) EncodeFields(w model.FieldWriter) {
 	w.String("Topic", m.Topic)
 	w.Int("Type", int64(m.Type))
-	w.Uint("ID", uint64(m.ID))
+	w.Int("ID", int64(m.ID))
 	w.Bytes("Payload", m.Payload)
 }
 
@@ -29,7 +29,7 @@ func (m *Message) DecodeFields(r model.FieldReader) {
 	if t, ok := r.Int("Type"); ok {
 		m.Type = fmt.MessageType(t)
 	}
-	if id, ok := r.Uint("ID"); ok {
+	if id, ok := r.Int("ID"); ok {
 		m.ID = uint32(id)
 	}
 	if v, ok := r.Bytes("Payload"); ok {
